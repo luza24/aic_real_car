@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aic26_gazebo</name>
+  <version>0.0.1</version>
+  <description>
+    Gazebo simulation assets for AIC26 Smart Community: worlds, models, launch files.
+  </description>
+
+  <maintainer email="you@example.com">Your Name</maintainer>
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>gazebo_plugins</build_depend>
+  <build_depend>gazebo_ros</build_depend>
+
+  <build_export_depend>gazebo_plugins</build_export_depend>
+  <build_export_depend>gazebo_ros</build_export_depend>
+
+  <exec_depend>gazebo_plugins</exec_depend>
+  <exec_depend>gazebo_ros</exec_depend>
+
+  <export>
+    <gazebo_ros gazebo_model_path="${prefix}/models"/>
+  </export>
+</package>

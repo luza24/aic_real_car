@@ -1,0 +1,10 @@
+.vscode/
+*temp*
+
+build/
+devel/
+.catkin_workspace
+
+__pycache__/
+*.pyc
+*.pyo

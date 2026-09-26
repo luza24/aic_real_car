@@ -1,0 +1,23 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <model name="car3">
+    <static>true</static>
+    <link name="link">
+      <collision name="collision">
+        <pose>0 0 0.125 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.05 0.345 0.25</size>
+          </box>
+        </geometry>
+      </collision>
+      <visual name="visual">
+        <geometry>
+          <mesh>
+            <uri>model://car3/meshes/car3.dae</uri>
+          </mesh>
+        </geometry>
+      </visual>
+    </link>
+  </model>
+</sdf>

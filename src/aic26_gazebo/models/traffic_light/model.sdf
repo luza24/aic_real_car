@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<sdf version="1.6">
+  <model name="traffic_light">
+    <static>true</static>
+    <link name="gantry">
+      <collision name="left_foot_collision">
+        <pose>-0.3075 0 0.24 0 0 0</pose>
+        <geometry><box><size>0.025 0.025 0.48</size></box></geometry>
+      </collision>
+      <collision name="right_foot_collision">
+        <pose>0.3075 0 0.24 0 0 0</pose>
+        <geometry><box><size>0.025 0.025 0.48</size></box></geometry>
+      </collision>
+      <collision name="crossbar_collision">
+        <pose>0 0 0.41 0 0 0</pose>
+        <geometry><box><size>0.59 0.04 0.14</size></box></geometry>
+      </collision>
+
+      <visual name="left_foot">
+        <pose>-0.3075 0 0.24 0 0 0</pose>
+        <geometry><box><size>0.025 0.025 0.48</size></box></geometry>
+        <material><ambient>0.06 0.07 0.07 1</ambient><diffuse>0.12 0.14 0.14 1</diffuse></material>
+      </visual>
+      <visual name="right_foot">
+        <pose>0.3075 0 0.24 0 0 0</pose>
+        <geometry><box><size>0.025 0.025 0.48</size></box></geometry>
+        <material><ambient>0.06 0.07 0.07 1</ambient><diffuse>0.12 0.14 0.14 1</diffuse></material>
+      </visual>
+      <visual name="crossbar">
+        <pose>0 0 0.41 0 0 0</pose>
+        <geometry><box><size>0.59 0.04 0.14</size></box></geometry>
+        <material><ambient>0.04 0.03 0.02 1</ambient><diffuse>0.24 0.27 0.27 1</diffuse><specular>0.25 0.25 0.25 1</specular></material>
+      </visual>
+      <visual name="red_lens">
+        <pose>-0.2 -0.0201 0.41 0 0 0</pose>
+        <geometry><box><size>0.12 0.0002 0.12</size></box></geometry>
+        <material>
+          <script>
+            <uri>model://traffic_light/materials/scripts</uri>
+            <uri>model://traffic_light/materials/textures</uri>
+            <name>traffic_light/red_off</name>
+          </script>
+        </material>
+      </visual>
+      <visual name="green_lens">
+        <pose>0 -0.0201 0.41 0 0 0</pose>
+        <geometry><box><size>0.12 0.0002 0.12</size></box></geometry>
+        <material>
+          <script>
+            <uri>model://traffic_light/materials/scripts</uri>
+            <uri>model://traffic_light/materials/textures</uri>
+            <name>traffic_light/green_off</name>
+          </script>
+        </material>
+      </visual>
+      <visual name="yellow_lens">
+        <pose>0.2 -0.0201 0.41 0 0 0</pose>
+        <geometry><box><size>0.12 0.0002 0.12</size></box></geometry>
+        <material>
+          <script>
+            <uri>model://traffic_light/materials/scripts</uri>
+            <uri>model://traffic_light/materials/textures</uri>
+            <name>traffic_light/yellow_off</name>
+          </script>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

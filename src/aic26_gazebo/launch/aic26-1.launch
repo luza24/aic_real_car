@@ -1,0 +1,28 @@
+<launch>
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name"   value="$(find aic26_gazebo)/worlds/aic26-1.world"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="paused"       value="false"/>
+    <arg name="gui"          value="true"/>
+    <arg name="headless"     value="false"/>
+    <arg name="debug"        value="false"/>
+    <arg name="verbose"      value="true"/>
+  </include>
+
+  <param name="robot_description"
+         command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
+
+  <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
+        args="-param robot_description -urdf -model armbot -x 1.7 -y 1.7 -z 0 -Y 3.141592"
+        output="screen"/>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher"
+        type="robot_state_publisher" output="screen"/>
+
+  <node name="traffic_light_controller" pkg="aic26_utils"
+        type="traffic_light_controller" output="screen">
+    <env name="GAZEBO_MASTER_URI" value="http://127.0.0.1:11345"/>
+  </node>
+
+</launch>

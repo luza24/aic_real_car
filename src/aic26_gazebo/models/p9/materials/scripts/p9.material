@@ -1,0 +1,17 @@
+material p9
+{
+    technique
+    {
+        pass
+        {
+            ambient 1.0 1.0 1.0 1.0
+            diffuse 1.0 1.0 1.0 1.0
+            scene_blend alpha_blend
+            depth_write off
+            texture_unit
+            {
+                texture p9.png
+            }
+        }
+    }
+}
