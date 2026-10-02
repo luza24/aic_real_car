@@ -1,0 +1,49 @@
+waypoints:
+  - name: "start"
+    x: 1.7
+    y: 1.7
+    yaw: 3.141592
+  - name: "corner_1"
+    x: 1.0
+    y: 1.7
+    yaw: 3.141592
+  - name: "corner_2"
+    x: -1.7
+    y: 1.7
+    yaw: 4.712388
+  - name: "corner_3"
+    x: -1.7
+    y: -1.7
+    yaw: 0.000000
+  - name: "corner_4"
+    x: 1.0
+    y: -1.7
+    yaw: 1.570796
+  - name: "corner_5"
+    x: -1.7
+    y: 0.45
+    yaw: 0.000000
+  - name: "corner_6"
+    x: -0.1
+    y: 0.45
+    yaw: 4.712388
+  - name: "corner_7"
+    x: -0.1
+    y: -1.7
+    yaw: 0.000000
+  - name: "traffic_light_1"
+    x: 0.4
+    y: 1.7
+    yaw: 3.141592
+  - name: "traffic_light_2"
+    x: -0.1
+    y: -0.4
+    yaw: 4.712388
+  - name: "station_1"
+    x: -0.8
+    y: 1.7
+    yaw: -1.57
+  - name: "station_2"
+    x: -0.8
+    y: 0.6
+    yaw: 0.0

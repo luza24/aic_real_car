@@ -13,6 +13,8 @@
   <param name="robot_description"
          command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
 
+  <node pkg="rviz" type="rviz" name="rviz" output="screen"/>
+
   <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
         args="-param robot_description -urdf -model armbot -x 1.7 -y 1.7 -z 0 -Y 3.141592"
         output="screen"/>
@@ -20,9 +22,15 @@
   <node name="robot_state_publisher" pkg="robot_state_publisher"
         type="robot_state_publisher" output="screen"/>
 
-  <node name="traffic_light_controller" pkg="aic26_utils"
-        type="traffic_light_controller" output="screen">
-    <env name="GAZEBO_MASTER_URI" value="http://127.0.0.1:11345"/>
+  <node pkg="aic26_utils" type="traffic_controller.py" name="traffic_controller" output="screen">
+    <param name="command_topic" value="/traffic_light/command"/>
+    <param name="rate_hz"       value="20.0"/>
+    <param name="phase_offset"  value="10.0"/>
+    <rosparam param="durations">
+      RED:    10
+      GREEN:  8
+      YELLOW:  2
+    </rosparam>
   </node>
 
 </launch>

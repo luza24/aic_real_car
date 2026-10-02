@@ -1,0 +1,19 @@
+<launch>
+  <arg name="map_file" default="$(find aic26_slam)/maps/aic26-1.yaml"/>
+
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
+
+  <node name="amcl" pkg="amcl" type="amcl" output="screen">
+    <rosparam file="$(find aic26_navigation)/config/amcl_params.yaml" command="load"/>
+  </node>
+
+  <node name="move_base" pkg="move_base" type="move_base" output="screen">
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap"/>
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap"/>
+    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml" command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml" command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/base_local_planner_params.yaml" command="load"/>
+    <param name="base_global_planner" value="navfn/NavfnROS"/>
+    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
+  </node>
+</launch>

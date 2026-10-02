@@ -25,7 +25,5 @@
     <param name="resampleThreshold" value="0.5"/>
 
   </node>
-
-  <node pkg="rviz" type="rviz" name="rviz" output="screen"/>
   
 </launch>

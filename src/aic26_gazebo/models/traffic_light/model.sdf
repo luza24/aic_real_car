@@ -30,6 +30,7 @@
         <pose>0 0 0.41 0 0 0</pose>
         <geometry><box><size>0.59 0.04 0.14</size></box></geometry>
         <material><ambient>0.04 0.03 0.02 1</ambient><diffuse>0.24 0.27 0.27 1</diffuse><specular>0.25 0.25 0.25 1</specular></material>
+        <plugin name="traffic_light_visual" filename="libtraffic_light_visual_plugin.so"/>
       </visual>
       <visual name="red_lens">
         <pose>-0.2 -0.0201 0.41 0 0 0</pose>

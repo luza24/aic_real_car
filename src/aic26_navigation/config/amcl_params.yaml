@@ -1,0 +1,18 @@
+use_map_topic: true
+odom_frame_id: odom
+base_frame_id: base_footprint
+global_frame_id: map
+
+min_particles: 500
+max_particles: 2000
+kld_err: 0.05
+update_min_d: 0.10
+update_min_a: 0.10
+resample_interval: 1
+transform_tolerance: 0.5
+recovery_alpha_slow: 0.0
+recovery_alpha_fast: 0.0
+
+laser_model_type: likelihood_field
+laser_max_range: 12.0
+laser_min_range: 0.1

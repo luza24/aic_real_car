@@ -8,7 +8,9 @@ project(aic26_navigation)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  amcl
   costmap_2d
+  map_server
   move_base
 )
 
@@ -104,7 +106,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES aic26_navigation
-#  CATKIN_DEPENDS costmap_2d move_base
+#  CATKIN_DEPENDS amcl costmap_2d map_server move_base
 #  DEPENDS system_lib
 )
 

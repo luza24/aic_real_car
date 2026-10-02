@@ -8,18 +8,18 @@ project(aic26_utils)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
   roscpp
   rospy
   std_msgs
+  aic26_msgs
   gazebo_ros
-  gazebo_plugins
+  gazebo_dev
 )
 
 find_package(gazebo REQUIRED)
 
 catkin_package(
-  CATKIN_DEPENDS roscpp std_msgs gazebo_ros gazebo_plugins
+  CATKIN_DEPENDS roscpp rospy std_msgs aic26_msgs gazebo_ros gazebo_dev
 )
 
 ## System dependencies are found with CMake's conventions
@@ -79,7 +79,7 @@ catkin_package(
 ## Generate added messages and services with any dependencies listed here
 # generate_messages(
 #   DEPENDENCIES
-#   geometry_msgs
+# 
 # )
 
 ################################################
@@ -114,7 +114,7 @@ catkin_package(
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES aic26_utils
-#  CATKIN_DEPENDS geometry_msgs roscpp rospy
+#  CATKIN_DEPEND roscpp rospy
 #  DEPENDS system_lib
 )
 
@@ -145,12 +145,6 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/aic26_utils_node.cpp)
 
-add_executable(traffic_light_controller src/traffic_light_controller.cpp)
-target_link_libraries(traffic_light_controller
-  ${catkin_LIBRARIES}
-  ${GAZEBO_LIBRARIES}
-)
-
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -166,6 +160,18 @@ target_link_libraries(traffic_light_controller
 #   ${catkin_LIBRARIES}
 # )
 
+## Traffic light visual plugin (loaded by gzclient)
+add_library(traffic_light_visual_plugin SHARED
+  src/traffic_light_visual_plugin.cpp
+)
+target_link_libraries(traffic_light_visual_plugin
+  ${catkin_LIBRARIES}
+  ${GAZEBO_LIBRARIES}
+)
+add_dependencies(traffic_light_visual_plugin
+  ${catkin_EXPORTED_TARGETS}
+)
+
 #############
 ## Install ##
 #############
@@ -179,6 +185,11 @@ target_link_libraries(traffic_light_controller
 #   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
+
+catkin_install_python(PROGRAMS
+  scripts/traffic_controller.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark executables for installation
 ## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
