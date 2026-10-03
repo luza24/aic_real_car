@@ -7,22 +7,16 @@
       <collision name="collision">
         <pose>0 0 0.1</pose>
         <geometry>
-          <box><size>0.005 0.09 0.2</size></box>
+          <box><size>0.01 0.09 0.2</size></box>
         </geometry>
       </collision>
 
       <visual name="visual">
-        <pose>0 0 0.1</pose>
         <geometry>
-          <box><size>0.005 0.09 0.2</size></box>
+          <mesh>
+            <uri>model://p8/meshes/p8.dae</uri>
+          </mesh>
         </geometry>
-        <material>
-          <script>
-            <uri>model://p8/materials/scripts</uri>
-            <uri>model://p8/materials/textures</uri>
-            <name>p8</name>
-          </script>
-        </material>
       </visual>
 
     </link>

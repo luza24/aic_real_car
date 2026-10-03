@@ -7,22 +7,16 @@
       <collision name="collision">
         <pose>0 0 0.1</pose>
         <geometry>
-          <box><size>0.005 0.09 0.2</size></box>
+          <box><size>0.01 0.09 0.2</size></box>
         </geometry>
       </collision>
 
       <visual name="visual">
-        <pose>0 0 0.1</pose>
         <geometry>
-          <box><size>0.005 0.09 0.2</size></box>
+          <mesh>
+            <uri>model://p7/meshes/p7.dae</uri>
+          </mesh>
         </geometry>
-        <material>
-          <script>
-            <uri>model://p7/materials/scripts</uri>
-            <uri>model://p7/materials/textures</uri>
-            <name>p7</name>
-          </script>
-        </material>
       </visual>
 
     </link>

@@ -49,6 +49,11 @@
       <name>map_walls</name>
       <pose>0 0 0 0 0 0</pose>
     </include>
+    <include>
+      <uri>model://unvisible_walls</uri>
+      <name>unvisible_walls</name>
+      <pose>0 0 0 0 0 0</pose>
+    </include>
 
     <include>
       <uri>model://p1</uri>
@@ -73,7 +78,7 @@
     <include>
       <uri>model://pF1</uri>
       <name>pF1</name>
-      <pose>-0.51 0.84 0 0 0 1.56</pose>
+      <pose>-0.51 0.84 0 0 0 4.76</pose>
     </include>
     <include>
       <uri>model://p9</uri>
@@ -98,17 +103,17 @@
     <include>
       <uri>model://p2</uri>
       <name>p2</name>
-      <pose>-1.35 0.15 0 0 0 1.56</pose>
+      <pose>-1.22 0.13 0 0 0 1.56</pose>
     </include>
     <include>
       <uri>model://p4</uri>
       <name>p4</name>
-      <pose>-1.22 0.07 0 0 0 1.62</pose>
+      <pose>-1.13 0.07 0 0 0 1.62</pose>
     </include>
     <include>
       <uri>model://p6</uri>
       <name>p6</name>
-      <pose>-1.07 0.12 0 0 0 1.34</pose>
+      <pose>-1.07 0.10 0 0 0 1.34</pose>
     </include>
     <include>
       <uri>model://p8</uri>
