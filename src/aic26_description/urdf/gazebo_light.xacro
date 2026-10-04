@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="light_length" value="0.006" />
+  <xacro:property name="light_radius" value="0.015" />
+  
+  <xacro:property name="light_m" value="0.02" />
+
+  <xacro:macro name="car_light" params="name parent_link color:='White' type:='spot' *origin">
+    <link name="${name}_link">
+      <visual>
+        <origin xyz="0 0 0" rpy="0 ${PI / 2} 0"/>
+        <geometry>
+          <cylinder radius="${light_radius}" length="${light_length}"/>
+        </geometry>
+      </visual>
+
+      <collision>
+        <origin xyz="0 0 0" rpy="0 ${PI / 2} 0"/>
+        <geometry>
+          <cylinder radius="${light_radius}" length="${light_length}"/>
+        </geometry>
+      </collision>
+
+      <inertial>
+        <mass value="${light_m}"/>
+        <inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/>
+      </inertial>
+    </link>
+
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child link="${name}_link"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <gazebo reference="${name}_link">
+      <material>Gazebo/${color}Glow</material>
+
+      <light name="${name}_light" type="${type}">
+        <pose>0 0 0 0 0 0</pose>
+        <diffuse>1 1 1 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+        <intensity>0.1</intensity>
+        <cast_shadows>true</cast_shadows>
+
+        <xacro:if value="${type == 'spot'}">
+          <direction>1 0 0</direction>
+          <spot>
+            <inner_angle>0.7</inner_angle>
+            <outer_angle>1.5</outer_angle>
+            <falloff>0.3</falloff>
+          </spot>
+        </xacro:if>
+
+        <attenuation>
+          <range>6.0</range>
+          <linear>0.6</linear>
+          <quadratic>0.1</quadratic>
+        </attenuation>
+      </light>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:car_light name="left_headlight" parent_link="base_link">
+    <origin xyz="${base_link_length / 2 + light_length / 2} ${base_link_width / 4} ${base_link_height / 6}" rpy="0 0 0"/>
+  </xacro:car_light>
+  
+  <xacro:car_light name="right_headlight" parent_link="base_link">
+    <origin xyz="${base_link_length / 2 + light_length / 2} ${base_link_width / -4} ${base_link_height / 6}" rpy="0 0 0"/>
+  </xacro:car_light>
+
+</robot>

@@ -58,42 +58,42 @@
     <include>
       <uri>model://p1</uri>
       <name>p1</name>
-      <pose>-1.11 1.08 0 0 0.26</pose>
+      <pose>-1.30 0.99 0 0 0 3.02</pose>
     </include>
     <include>
       <uri>model://p3</uri>
       <name>p3</name>
-      <pose>-1.02 1.21 0 0 0 0.12</pose>
+      <pose>-1.29 1.14 0 0 0 3.04</pose>
     </include>
     <include>
       <uri>model://p5</uri>
       <name>p5</name>
-      <pose>-0.86 0.92 0 0 0 0.62</pose>
+      <pose>-1.26 0.87 0 0 0 3.12</pose>
     </include>
     <include>
       <uri>model://p7</uri>
       <name>p7</name>
-      <pose>-0.73 1.13 0 0 0 0.42</pose>
+      <pose>-1.24 1.29 0 0 0 3.15</pose>
     </include>
     <include>
       <uri>model://pF1</uri>
       <name>pF1</name>
-      <pose>-0.51 0.84 0 0 0 4.76</pose>
+      <pose>-0.65 0.84 0 0 0 4.76</pose>
     </include>
     <include>
       <uri>model://p9</uri>
       <name>p9</name>
-      <pose>-0.32 1.12 0 0 0 0.89</pose>
+      <pose>-0.41 1.23 0 0 0 1.17</pose>
     </include>
     <include>
       <uri>model://p11</uri>
       <name>p11</name>
-      <pose>-0.19 1.20 0 0 0 1.24</pose>
+      <pose>-0.29 1.20 0 0 0 1.24</pose>
     </include>
     <include>
       <uri>model://p13</uri>
       <name>p13</name>
-      <pose>-0.07 1.23 0 0 0 1.37</pose>
+      <pose>-0.12 1.22 0 0 0 1.37</pose>
     </include>
     <include>
       <uri>model://p15</uri>
@@ -103,47 +103,47 @@
     <include>
       <uri>model://p2</uri>
       <name>p2</name>
-      <pose>-1.22 0.13 0 0 0 1.56</pose>
+      <pose>-1.26 0.13 0 0 0 1.35</pose>
     </include>
     <include>
       <uri>model://p4</uri>
       <name>p4</name>
-      <pose>-1.13 0.07 0 0 0 1.62</pose>
+      <pose>-1.13 0.07 0 0 0 1.43</pose>
     </include>
     <include>
       <uri>model://p6</uri>
       <name>p6</name>
-      <pose>-1.07 0.10 0 0 0 1.34</pose>
+      <pose>-0.98 0.12 0 0 0 1.34</pose>
     </include>
     <include>
       <uri>model://p8</uri>
       <name>p8</name>
-      <pose>-0.99 0.01 0 0 0 1.47</pose>
+      <pose>-0.83 0.05 0 0 0 1.47</pose>
     </include>
     <include>
       <uri>model://pF2</uri>
       <name>pF2</name>
-      <pose>-0.72 -0.47 0 0 0 0.12</pose>
+      <pose>-0.59 -0.19 0 0 0 0.12</pose>
     </include>
     <include>
       <uri>model://p10</uri>
       <name>p10</name>
-      <pose>-0.63 -0.26 0 0 0 -0.21</pose>
+      <pose>-0.56 -0.31 0 0 0 -0.21</pose>
     </include>
     <include>
       <uri>model://p12</uri>
       <name>p12</name>
-      <pose>-0.58 -0.37 0 0 0 0.03</pose>
+      <pose>-0.53 0.06 0 0 0 0.03</pose>
     </include>
     <include>
       <uri>model://p14</uri>
       <name>p14</name>
-      <pose>-0.52 -0.32 0 0 0 -0.24</pose>
+      <pose>-0.52 -0.05 0 0 0 -0.24</pose>
     </include>
     <include>
       <uri>model://p16</uri>
       <name>p16</name>
-      <pose>-0.49 -0.48 0 0 0 -0.19</pose>
+      <pose>-0.49 -0.40 0 0 0 -0.19</pose>
     </include>
     <include>
       <uri>model://car1</uri>
@@ -164,13 +164,13 @@
     <include>
       <uri>model://traffic_light</uri>
       <name>traffic_light_1</name>
-      <pose>0.3 1.7 0 0 0 1.570796</pose>
+      <pose>-0.1 1.7 0 0 0 1.570796</pose>
     </include>
     
     <include>
       <uri>model://traffic_light</uri>
       <name>traffic_light_2</name>
-      <pose>-0.1 -0.5 0 0 0 3.141592</pose>
+      <pose>-0.1 -0.8 0 0 0 3.141592</pose>
     </include>
 
     <gui fullscreen="0">

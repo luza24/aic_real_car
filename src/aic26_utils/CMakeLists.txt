@@ -12,14 +12,13 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   aic26_msgs
-  gazebo_ros
   gazebo_dev
 )
 
 find_package(gazebo REQUIRED)
 
 catkin_package(
-  CATKIN_DEPENDS roscpp rospy std_msgs aic26_msgs gazebo_ros gazebo_dev
+  CATKIN_DEPENDS roscpp rospy std_msgs aic26_msgs gazebo_dev
 )
 
 ## System dependencies are found with CMake's conventions

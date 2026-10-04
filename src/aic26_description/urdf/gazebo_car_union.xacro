@@ -4,6 +4,7 @@
   <xacro:include filename="gazebo_car.xacro"/>
   <xacro:include filename="gazebo_laser.xacro"/>
   <xacro:include filename="gazebo_camera.xacro"/>
+  <xacro:include filename="gazebo_light.xacro"/>
 
   <!-- Keep the existing navigation API while using the VM project's four-wheel skid drive. -->
   <gazebo>

@@ -53,7 +53,6 @@
   <depend>roscpp</depend>
   <depend>rospy</depend>
   <depend>std_msgs</depend>
-  <depend>gazebo_ros</depend>
   <depend>gazebo_dev</depend>
   <depend>aic26_msgs</depend>
 

@@ -106,10 +106,11 @@ def main():
 
     rospy.loginfo("phase_offset = %.1fs (light2 behind light1)", phase_offset)
 
-    pub = rospy.Publisher(cmd_topic, TrafficLightCommand, queue_size=10)
+    pub = rospy.Publisher(cmd_topic, TrafficLightCommand, queue_size=10, latch=True)
 
     # wait for connection
-    rospy.sleep(0.5)
+    while pub.get_num_connections() == 0 and not rospy.is_shutdown():
+        rospy.sleep(0.05)
 
     rospy.loginfo(
         "traffic_controller started: cycle=%.0fs (R=%.0f G=%.0f Y=%.0f)",

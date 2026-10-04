@@ -25,5 +25,25 @@
     <param name="resampleThreshold" value="0.5"/>
 
   </node>
+
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" 
+        name="teleop" output="screen"
+        launch-prefix="xterm -e">
+    <param name="speed" value="0.1"/>
+    <param name="turn"  value="0.5"/>
+  </node>
+
+  <node pkg="image_view" type="image_view"
+        name="image_view" output="screen">
+    <remap from="image" to="/camera/image_raw"/>
+    <param name="filename" value="/home/govis/aic26_datasets/screenshots/snap_"/>
+  </node>
+
+  <node pkg="image_view" type="extract_images"
+        name="extract_images" output="screen">
+    <remap from="image" to="/camera/image_raw"/>
+    <param name="sec_per_frame" value="2.0"/>
+    <param name="filename_format" value="/home/govis/aic26_datasets/screenshots/auto/snap_%04i.jpg"/>
+  </node>
   
 </launch>
