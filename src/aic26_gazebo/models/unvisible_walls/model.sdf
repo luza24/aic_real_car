@@ -12,12 +12,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>2.14 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 

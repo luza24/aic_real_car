@@ -22,7 +22,7 @@
   <node name="robot_state_publisher" pkg="robot_state_publisher"
         type="robot_state_publisher" output="screen"/>
 
-  <node pkg="aic26_utils" type="traffic_controller.py" name="traffic_controller" output="screen">
+  <node pkg="aic26_gazebo" type="traffic_controller.py" name="traffic_controller" output="screen">
     <param name="command_topic" value="/traffic_light/command"/>
     <param name="rate_hz"       value="20.0"/>
     <param name="phase_offset"  value="10.0"/>
