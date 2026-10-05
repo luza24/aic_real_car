@@ -1,4 +1,5 @@
 <launch>
+
   <arg name="map_file" default="$(find aic26_slam)/maps/aic26-1.yaml"/>
 
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
@@ -14,6 +15,7 @@
     <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml" command="load"/>
     <rosparam file="$(find aic26_navigation)/config/base_local_planner_params.yaml" command="load"/>
     <param name="base_global_planner" value="navfn/NavfnROS"/>
-    <param name="base_local_planner" value="dwa_local_planner/DWAPlannerROS"/>
+    <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS"/>
   </node>
+
 </launch>

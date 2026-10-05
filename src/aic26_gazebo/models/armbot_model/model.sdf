@@ -2,15 +2,15 @@
   <model name='armbot'>
     <link name='base_footprint'>
       <inertial>
-        <pose>0.001638 0 0.086213 0 -0 0</pose>
-        <mass>0.632</mass>
+        <pose>0.008862 0 0.085942 0 -0 0</pose>
+        <mass>0.672</mass>
         <inertia>
-          <ixx>0.00327825</ixx>
+          <ixx>0.00336203</ixx>
           <ixy>0</ixy>
-          <ixz>-3.90778e-05</ixz>
-          <iyy>0.00451206</iyy>
-          <iyz>0</iyz>
-          <izz>0.00167455</izz>
+          <ixz>-1.8321e-05</ixz>
+          <iyy>0.00506892</iyy>
+          <iyz>1.69407e-21</iyz>
+          <izz>0.00231163</izz>
         </inertia>
       </inertial>
       <collision name='base_footprint_fixed_joint_lump__base_link_collision'>
@@ -45,7 +45,24 @@
           </friction>
         </surface>
       </collision>
-      <collision name='base_footprint_fixed_joint_lump__mount_collision_2'>
+      <collision name='base_footprint_fixed_joint_lump__left_headlight_link_collision_2'>
+        <pose>0.123 0.045 0.081667 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.006</length>
+            <radius>0.015</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__mount_collision_3'>
         <pose>0.08 0 0.118333 0 -0 0</pose>
         <geometry>
           <box>
@@ -61,7 +78,24 @@
           </friction>
         </surface>
       </collision>
-      <collision name='base_footprint_fixed_joint_lump__support_collision_3'>
+      <collision name='base_footprint_fixed_joint_lump__right_headlight_link_collision_4'>
+        <pose>0.123 -0.045 0.081667 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.006</length>
+            <radius>0.015</radius>
+          </cylinder>
+        </geometry>
+        <surface>
+          <contact>
+            <ode/>
+          </contact>
+          <friction>
+            <ode/>
+          </friction>
+        </surface>
+      </collision>
+      <collision name='base_footprint_fixed_joint_lump__support_collision_5'>
         <pose>0 0 0.125 0 -0 0</pose>
         <geometry>
           <cylinder>
@@ -78,7 +112,7 @@
           </friction>
         </surface>
       </collision>
-      <collision name='base_footprint_fixed_joint_lump__laser_collision_4'>
+      <collision name='base_footprint_fixed_joint_lump__laser_collision_6'>
         <pose>0 0 0.155 0 -0 0</pose>
         <geometry>
           <cylinder>
@@ -123,7 +157,22 @@
           </script>
         </material>
       </visual>
-      <visual name='base_footprint_fixed_joint_lump__mount_visual_2'>
+      <visual name='base_footprint_fixed_joint_lump__left_headlight_link_visual_2'>
+        <pose>0.123 0.045 0.081667 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.006</length>
+            <radius>0.015</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/WhiteGlow</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__mount_visual_3'>
         <pose>0.08 0 0.118333 0 -0 0</pose>
         <geometry>
           <box>
@@ -137,7 +186,22 @@
           </script>
         </material>
       </visual>
-      <visual name='base_footprint_fixed_joint_lump__support_visual_3'>
+      <visual name='base_footprint_fixed_joint_lump__right_headlight_link_visual_4'>
+        <pose>0.123 -0.045 0.081667 0 1.5708 0</pose>
+        <geometry>
+          <cylinder>
+            <length>0.006</length>
+            <radius>0.015</radius>
+          </cylinder>
+        </geometry>
+        <material>
+          <script>
+            <name>Gazebo/WhiteGlow</name>
+            <uri>file://media/materials/scripts/gazebo.material</uri>
+          </script>
+        </material>
+      </visual>
+      <visual name='base_footprint_fixed_joint_lump__support_visual_5'>
         <pose>0 0 0.125 0 -0 0</pose>
         <geometry>
           <cylinder>
@@ -152,7 +216,7 @@
           </script>
         </material>
       </visual>
-      <visual name='base_footprint_fixed_joint_lump__laser_visual_4'>
+      <visual name='base_footprint_fixed_joint_lump__laser_visual_6'>
         <pose>0 0 0.155 0 -0 0</pose>
         <geometry>
           <cylinder>
@@ -170,7 +234,7 @@
       <sensor name='camera_node' type='camera'>
         <update_rate>30</update_rate>
         <camera name='head'>
-          <horizontal_fov>1.39626</horizontal_fov>
+          <horizontal_fov>1.5708</horizontal_fov>
           <image>
             <width>1280</width>
             <height>720</height>
@@ -202,8 +266,44 @@
         </plugin>
         <pose>0.0875 0 0.125 0 -0 0</pose>
       </sensor>
+      <light name='left_headlight_light' type='spot'>
+        <diffuse>1 1 1 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+        <cast_shadows>1</cast_shadows>
+        <direction>1 0 0</direction>
+        <spot>
+          <inner_angle>0.7</inner_angle>
+          <outer_angle>1.5</outer_angle>
+          <falloff>0.3</falloff>
+        </spot>
+        <attenuation>
+          <range>6</range>
+          <linear>0.6</linear>
+          <quadratic>0.1</quadratic>
+        </attenuation>
+        <pose>0.123 0.045 0.081667 0 -0 0</pose>
+        <intensity>0.1</intensity>
+      </light>
+      <light name='right_headlight_light' type='spot'>
+        <diffuse>1 1 1 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+        <cast_shadows>1</cast_shadows>
+        <direction>1 0 0</direction>
+        <spot>
+          <inner_angle>0.7</inner_angle>
+          <outer_angle>1.5</outer_angle>
+          <falloff>0.3</falloff>
+        </spot>
+        <attenuation>
+          <range>6</range>
+          <linear>0.6</linear>
+          <quadratic>0.1</quadratic>
+        </attenuation>
+        <pose>0.123 -0.045 0.081667 0 -0 0</pose>
+        <intensity>0.1</intensity>
+      </light>
       <sensor name='laser_sensor' type='ray'>
-        <visualize>1</visualize>
+        <visualize>0</visualize>
         <update_rate>40</update_rate>
         <ray>
           <scan>
@@ -540,10 +640,18 @@
       <pose>0.0875 0 0.055 0 -0 0</pose>
     </frame>
     <frame name='camera' attached_to='camera2mount'/>
+    <frame name='left_headlight_joint' attached_to='base_link'>
+      <pose>0.123 0.045 0.011667 0 -0 0</pose>
+    </frame>
+    <frame name='left_headlight_link' attached_to='left_headlight_joint'/>
     <frame name='mount2base_link' attached_to='base_link'>
       <pose>0.08 0 0.048333 0 -0 0</pose>
     </frame>
     <frame name='mount' attached_to='mount2base_link'/>
+    <frame name='right_headlight_joint' attached_to='base_link'>
+      <pose>0.123 -0.045 0.011667 0 -0 0</pose>
+    </frame>
+    <frame name='right_headlight_link' attached_to='right_headlight_joint'/>
     <frame name='laser2support' attached_to='support'>
       <pose>0 0 0.03 0 -0 0</pose>
     </frame>

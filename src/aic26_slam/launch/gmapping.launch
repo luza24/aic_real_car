@@ -1,9 +1,5 @@
 <launch>
 
-  <node pkg="tf2_ros" type="static_transform_publisher"
-        name="laser_tf"
-        args="0 0 0.265 0 0 0 base_footprint laser"/>
-
   <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
 
     <param name="base_frame"   value="base_footprint"/>
@@ -37,13 +33,6 @@
         name="image_view" output="screen">
     <remap from="image" to="/camera/image_raw"/>
     <param name="filename" value="/home/govis/aic26_datasets/screenshots/snap_"/>
-  </node>
-
-  <node pkg="image_view" type="extract_images"
-        name="extract_images" output="screen">
-    <remap from="image" to="/camera/image_raw"/>
-    <param name="sec_per_frame" value="2.0"/>
-    <param name="filename_format" value="/home/govis/aic26_datasets/screenshots/auto/snap_%04i.jpg"/>
   </node>
   
 </launch>
