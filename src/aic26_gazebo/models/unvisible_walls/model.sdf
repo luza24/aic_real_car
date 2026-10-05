@@ -30,12 +30,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.64 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -48,12 +48,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>1.60 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -66,12 +66,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.96 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -84,12 +84,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.96 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -102,12 +102,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.56 0.02 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -120,12 +120,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 0.56 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -138,12 +138,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 1.54 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -156,12 +156,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 1.54 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -174,12 +174,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 2.20 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -192,12 +192,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 2.74 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
@@ -210,12 +210,12 @@
       <visual name="visual">
         <pose>0 0 0.35 0 0 0</pose>
         <geometry><box><size>0.02 3.42 0.7</size></box></geometry>
-        <!-- <material>
+        <material>
           <script>
             <uri>model://unvisible_walls/materials/scripts</uri>
             <name>unvisible</name>
           </script>
-        </material> -->
+        </material>
       </visual>
     </link>
 
