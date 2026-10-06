@@ -1,11 +1,8 @@
 obstacle_range: 3.0
 raytrace_range: 3.5
 
-footprint: [[-0.16, -0.12], [-0.16, 0.12], [0.16, 0.12], [0.16, -0.12]]
-
-inflation_layer:
-  inflation_radius: 0.25
-  cost_scaling_factor: 5.0
+footprint: [[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]
+footprint_padding: 0.0
 
 obstacle_layer:
   observation_sources: scan
@@ -15,6 +12,6 @@ obstacle_layer:
     clearing: true
     marking: true
     data_type: LaserScan
-
+    inf_is_valid: true
 static_layer:
   map_topic: /map

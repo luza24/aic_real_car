@@ -1,80 +1,82 @@
+<?xml version="1.0"?>
+
 <robot name="camera" xmlns:xacro="http://wiki.ros.org/xacro">
 
-    <xacro:property name="mount_length" value="0.005" />
-    <xacro:property name="mount_width" value="0.008" />
-    <xacro:property name="mount_height" value="${support_length * 2 / 3}" />
+    <xacro:property name="mount_length" value="0.005"/>
+    <xacro:property name="mount_width" value="0.008"/>
+    <xacro:property name="mount_height" value="${support_length * 2 / 3}"/>
 
-    <xacro:property name="mount_x" value="0.08" />
-    <xacro:property name="mount_y" value="0.0" />
-    <xacro:property name="mount_z" value="${base_link_height / 2 + support_length / 3}" /> 
+    <xacro:property name="mount_x" value="0.08"/>
+    <xacro:property name="mount_y" value="0.0"/>
+    <xacro:property name="mount_z" value="${base_link_height / 2 + support_length / 3}"/> 
 
-    <xacro:property name="mount_m" value="0.002" />
+    <xacro:property name="mount_m" value="0.002"/>
 
     <link name="mount">
         <visual>
             <geometry>
-                <box size="${mount_length} ${mount_width} ${mount_height}" rpy="0 0 0" />
+                <box size="${mount_length} ${mount_width} ${mount_height}"/>
             </geometry>
-            <origin size="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-            <material name="black" />
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <material name="black"/>
         </visual>
 
         <collision>
             <geometry>
-                <box size="${mount_length} ${mount_width} ${mount_height}" rpy="0 0 0" />
+                <box size="${mount_length} ${mount_width} ${mount_height}"/>
             </geometry>
-            <origin size="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
         </collision>
 
-        <xacro:Box_inertial_matrix m="${mount_m}" l="${mount_length}" w="${mount_width}" h="${mount_height}" />
+        <xacro:Box_inertial_matrix m="${mount_m}" l="${mount_length}" w="${mount_width}" h="${mount_height}"/>
 
     </link>
 
     <joint name="mount2base_link" type="fixed">
-        <parent link="base_link" />
-        <child link="mount" />
-        <origin xyz="${mount_x} ${mount_y} ${mount_z}" />
+        <parent link="base_link"/>
+        <child link="mount"/>
+        <origin xyz="${mount_x} ${mount_y} ${mount_z}"/>
     </joint>
 
     <gazebo reference="mount">
         <material>Gazebo/FlatBlack</material>
     </gazebo>
 
-    <xacro:property name="camera_length" value="0.01" />
-    <xacro:property name="camera_width" value="0.03" />
-    <xacro:property name="camera_height" value="0.02" />
+    <xacro:property name="camera_length" value="0.01"/>
+    <xacro:property name="camera_width" value="0.03"/>
+    <xacro:property name="camera_height" value="0.02"/>
     
-    <xacro:property name="camera_x" value="${mount_x + mount_length / 2 + camera_length / 2}" />
+    <xacro:property name="camera_x" value="${mount_x + mount_length / 2 + camera_length / 2}"/>
 
-    <xacro:property name="camera_y" value="0.0" />
+    <xacro:property name="camera_y" value="0.0"/>
 
-    <xacro:property name="camera_z" value="${mount_z + mount_height / 4}" /> 
+    <xacro:property name="camera_z" value="${mount_z + mount_height / 4}"/> 
     
-    <xacro:property name="camera_m" value="0.01" />
+    <xacro:property name="camera_m" value="0.01"/>
 
     <link name="camera">
         <visual>
             <geometry>
-                <box size="${camera_length} ${camera_width} ${camera_height}" />
+                <box size="${camera_length} ${camera_width} ${camera_height}"/>
             </geometry>
-            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
-            <material name="black" />
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
+            <material name="black"/>
         </visual>
         <collision>
             <geometry>
-                <box size="${camera_length} ${camera_width} ${camera_height}" />
+                <box size="${camera_length} ${camera_width} ${camera_height}"/>
             </geometry>
-            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+            <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0"/>
         </collision>
 
-        <xacro:Box_inertial_matrix m="${camera_m}" l="${camera_length}" w="${camera_width}" h="${camera_height}" />
+        <xacro:Box_inertial_matrix m="${camera_m}" l="${camera_length}" w="${camera_width}" h="${camera_height}"/>
 
     </link>
 
     <joint name="camera2mount" type="fixed">
-        <parent link="base_link" />
-        <child link="camera" />
-        <origin xyz="${camera_x} ${camera_y} ${camera_z}" />
+        <parent link="mount"/>
+        <child link="camera"/>
+        <origin xyz="${camera_x} ${camera_y} ${camera_z}"/>
     </joint>
 
     <gazebo reference="camera">

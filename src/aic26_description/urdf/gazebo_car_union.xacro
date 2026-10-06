@@ -1,5 +1,7 @@
 <?xml version="1.0"?>
+
 <robot name="armbot" xmlns:xacro="http://wiki.ros.org/xacro">
+
   <xacro:include filename="gazebo_head.xacro"/>
   <xacro:include filename="gazebo_car.xacro"/>
   <xacro:include filename="gazebo_laser.xacro"/>
@@ -29,4 +31,5 @@
       <covariance_yaw>0.01</covariance_yaw>
     </plugin>
   </gazebo>
+
 </robot>

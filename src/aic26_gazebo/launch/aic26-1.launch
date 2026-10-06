@@ -13,8 +13,6 @@
   <param name="robot_description"
          command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
 
-  <node pkg="rviz" type="rviz" name="rviz" output="screen"/>
-
   <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
         args="-param robot_description -urdf -model armbot -x 1.7 -y 1.7 -z 0 -Y 3.141592"
         output="screen"/>
