@@ -22,12 +22,13 @@
 
   <node pkg="aic26_gazebo" type="traffic_controller.py" name="traffic_controller" output="screen">
     <param name="command_topic" value="/traffic_light/command"/>
+    <param name="state_topic"   value="/traffic_light/state"/>
     <param name="rate_hz"       value="20.0"/>
     <param name="phase_offset"  value="10.0"/>
     <rosparam param="durations">
       RED:    10
-      GREEN:  8
-      YELLOW:  2
+      GREEN:  15
+      YELLOW:  3
     </rosparam>
   </node>
 

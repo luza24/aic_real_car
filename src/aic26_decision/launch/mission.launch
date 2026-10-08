@@ -1,0 +1,20 @@
+<launch>
+
+  <arg name="tasks_file"     default="$(find aic26_decision)/config/tasks.yaml"/>
+  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+
+  <node name="mission_controller" pkg="aic26_decision"
+        type="mission_controller.py" output="screen">
+    <param name="tasks_file"     value="$(arg tasks_file)"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+
+    <param name="vision_topic"  value="/perception/traffic_light"/>
+    <param name="truth_topic"   value="/traffic_light/state"/>
+    <param name="result_topic"  value="/perception/result"/>
+    <param name="detect_topic"  value="/perception/detect"/>
+    <param name="speech_topic"  value="/speech"/>
+    <param name="detect_wait"   value="1.0"/>
+    <param name="no_data_wait"  value="10.0"/>
+  </node>
+
+</launch>

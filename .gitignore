@@ -1,5 +1,7 @@
 .vscode/
-*temp*
+.git/
+.cline/
+.drafts/
 
 build/
 devel/

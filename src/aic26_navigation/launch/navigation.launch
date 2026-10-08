@@ -1,6 +1,7 @@
 <launch>
 
   <arg name="map_file" default="$(find aic26_slam)/maps/aic26-1.yaml"/>
+  <arg name="use_rviz" default="true"/>
 
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
 
@@ -13,10 +14,11 @@
     <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap"/>
     <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml" command="load"/>
     <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml" command="load"/>
-    <rosparam file="$(find aic26_navigation)/config/base_local_planner_params.yaml" command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml" command="load" ns="GlobalPlanner"/>
+    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml" command="load"/>
 
-    <param name="base_global_planner" value="navfn/NavfnROS"/>
-    <param name="base_local_planner" value="base_local_planner/TrajectoryPlannerROS"/>
+    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
     <param name="controller_frequency" value="10.0"/>
     <param name="planner_frequency"    value="2.0"/>
     <param name="planner_patience"     value="5.0"/>
@@ -27,6 +29,6 @@
     <param name="recovery_behavior_enabled" value="true"/>
   </node>
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find aic26_navigation)/rviz/trajectory.rviz" />
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find aic26_navigation)/rviz/navigation.rviz"/>
 
 </launch>

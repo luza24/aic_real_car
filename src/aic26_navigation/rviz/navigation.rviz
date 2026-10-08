@@ -27,12 +27,12 @@ Visualization Manager:
     - Class: rviz/Path
       Name: GlobalPlan
       Enabled: true
-      Topic: /move_base/NavfnROS/plan
+      Topic: /move_base/GlobalPlanner/plan
 
     - Class: rviz/Path
       Name: LocalPlan
       Enabled: true
-      Topic: /move_base/TrajectoryPlannerROS/local_plan
+      Topic: /move_base/TebLocalPlannerROS/local_plan
 
     - Class: rviz/LaserScan
       Name: LaserScan

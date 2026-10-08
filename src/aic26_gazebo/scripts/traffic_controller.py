@@ -12,7 +12,7 @@ Publishes aic26_msgs/TrafficLightCommand on /traffic_light/command.
 """
 
 import rospy
-from aic26_msgs.msg import TrafficLightCommand
+from aic26_msgs.msg import TrafficLightCommand, TrafficLightState
 
 DEFAULT_DURATION = {
     'RED':    30.0,
@@ -82,6 +82,14 @@ def publish_phase(pub, model_name, phase):
         pub.publish(msg)
 
 
+def publish_state(pub, model_name, phase):
+    # ground truth state, used by the mission controller as a fallback
+    msg = TrafficLightState()
+    msg.model_name = model_name
+    msg.state      = phase
+    pub.publish(msg)
+
+
 def main():
     rospy.init_node('traffic_controller')
 
@@ -96,6 +104,7 @@ def main():
         _acc += DURATION[_p]
 
     cmd_topic = rospy.get_param('~command_topic', '/traffic_light/command')
+    state_topic = rospy.get_param('~state_topic', '/traffic_light/state')
     rate_hz   = rospy.get_param('~rate_hz', 20.0)
     phase_offset = rospy.get_param('~phase_offset', 15.0)
 
@@ -107,6 +116,7 @@ def main():
     rospy.loginfo("phase_offset = %.1fs (light2 behind light1)", phase_offset)
 
     pub = rospy.Publisher(cmd_topic, TrafficLightCommand, queue_size=10, latch=True)
+    state_pub = rospy.Publisher(state_topic, TrafficLightState, queue_size=10, latch=True)
 
     # wait for connection
     while pub.get_num_connections() == 0 and not rospy.is_shutdown():
@@ -134,6 +144,7 @@ def main():
 
             if phase != last_phase[cfg['model']]:
                 publish_phase(pub, cfg['model'], phase)
+                publish_state(state_pub, cfg['model'], phase)
                 last_phase[cfg['model']] = phase
                 rospy.loginfo(
                     "[%s] -> %-6s  (global=%6.1fs  local=%6.1fs)",
