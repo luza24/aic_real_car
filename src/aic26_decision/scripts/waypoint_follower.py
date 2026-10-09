@@ -28,7 +28,9 @@ def make_goal(wp):
 def main():
     rospy.init_node("waypoint_follower")
     client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-    client.wait_for_server()
+    if not client.wait_for_server(rospy.Duration(20.0)):
+        rospy.logerr("move_base action server load failed")
+        return
 
     waypoints = load_waypoints(rospy.get_param("~waypoints_file"))
     for wp in waypoints:

@@ -5,12 +5,17 @@ waypoints:
     yaw: 3.141592
     dwell: 0.0
   - name: "station_1"
+    x: -0.4
+    y: 1.7
+    yaw: 4.712388
+    dwell: 2.0
+  - name: "station_2"
     x: -1.7
     y: 1.1
     yaw: 4.712388
     dwell: 2.0
-  - name: "station_2"
-    x: -0.9
+  - name: "station_3"
+    x: -1.0
     y: 0.45
     yaw: 0.000000
     dwell: 2.0

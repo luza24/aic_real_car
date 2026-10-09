@@ -1,0 +1,20 @@
+<launch>
+
+  <include file="$(find aic26_gazebo)/launch/aic26-1.launch" />
+
+  <include file="$(find aic26_navigation)/launch/navigation.launch" />
+
+  <node pkg="image_view" type="image_view" name="image_view" output="screen">
+    <remap from="image" to="/camera/image_raw"/>
+  </node>
+
+  <node pkg="image_view" type="image_saver" name="image_saver" output="screen">
+    <remap from="image" to="/camera/image_raw"/>
+    <param name="filename_format" value="$(find aic26_gazebo)/../../.datasets/screenshots/auto/snap_%04i.jpg"/>
+    <param name="save_all_image" value="true"/>
+    <param name="sec_per_frame" value="0.167"/>
+  </node>
+
+  <node pkg="aic26_decision" type="screenshot_cycle.py" name="screenshot_cycle" output="screen" />
+  
+</launch>

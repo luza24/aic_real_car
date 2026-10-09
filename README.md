@@ -7,7 +7,7 @@
 
 ```bash
   source /opt/ros/noetic/setup.bash
-  catkin_make -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/usr/bin/python3
+  catkin_make 
   source devel/setup.bash
 ```
 
@@ -67,4 +67,3 @@ Optional arguments: `use_navigation`, `use_mission`, `use_perception`,
 | /perception/plate | std_msgs/String | aic26_ocr |
 | /perception/detect | std_msgs/String | mission controller |
 | /speech | std_msgs/String | mission controller |
-

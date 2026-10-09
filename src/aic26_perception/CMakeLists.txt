@@ -17,5 +17,10 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
+  scripts/traffic_light_detector.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(DIRECTORY models launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )

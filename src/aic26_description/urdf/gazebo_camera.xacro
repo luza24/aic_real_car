@@ -6,7 +6,7 @@
     <xacro:property name="mount_width" value="0.008"/>
     <xacro:property name="mount_height" value="${support_length * 2 / 3}"/>
 
-    <xacro:property name="mount_x" value="0.08"/>
+    <xacro:property name="mount_x" value="0.10"/>
     <xacro:property name="mount_y" value="0.0"/>
     <xacro:property name="mount_z" value="${base_link_height / 2 + support_length / 3}"/> 
 
@@ -86,7 +86,7 @@
         <update_rate>30.0</update_rate>
         
         <camera name="head">
-            <horizontal_fov>1.570796</horizontal_fov>
+            <horizontal_fov>1.745329</horizontal_fov>
             
             <image>
                 <width>1280</width>

@@ -17,6 +17,7 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   scripts/waypoint_follower.py
+  scripts/screenshot_cycle.py
   scripts/mission_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

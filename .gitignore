@@ -2,6 +2,7 @@
 .git/
 .cline/
 .drafts/
+.datasets/
 
 build/
 devel/
