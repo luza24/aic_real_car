@@ -17,12 +17,9 @@
   </group>
 
   <group if="$(arg use_perception)">
-    <node name="perception_stub" pkg="aic26_perception"
-          type="perception_stub.py" output="screen">
-      <param name="use_truth" value="true"/>
-    </node>
-    <node name="ocr_stub" pkg="aic26_ocr"
-          type="ocr_stub.py" output="screen"/>
+    <include file="$(find aic26_perception)/launch/traffic_light.launch"/>
+    <include file="$(find aic26_perception)/launch/people.launch"/>
+    <include file="$(find aic26_perception)/launch/car.launch"/>
   </group>
 
   <group if="$(arg use_mission)">

@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="model_path"
+       default="$(find aic26_perception)/models/car_int8.onnx"/>
+  <arg name="plate_roi" default="[0.30, 0.40, 0.70, 0.60]"/>
+  <arg name="ocr_scale" default="3.0"/>
+  <arg name="ocr_binary" default="false"/>
+  <arg name="ocr_gpu" default="false"/>
+  <arg name="ocr_min_chars" default="4"/>
+
+  <node name="car_detector" pkg="aic26_perception"
+        type="car_detector.py" output="screen">
+    <param name="model_path"   value="$(arg model_path)"/>
+    <param name="image_in"     value="/camera/image_raw"/>
+    <param name="result_topic" value="/perception/result"/>
+    <param name="image_topic"  value="/perception/car/image"/>
+    <param name="detect_topic" value="/perception/detect"/>
+    <param name="input_size"   value="320"/>
+    <param name="conf"         value="0.5"/>
+    <param name="nms"          value="0.45"/>
+    <rosparam param="plate_roi" subst_value="true">$(arg plate_roi)</rosparam>
+    <param name="ocr_scale"    value="$(arg ocr_scale)"/>
+    <param name="ocr_binary"   value="$(arg ocr_binary)"/>
+    <param name="ocr_gpu"      value="$(arg ocr_gpu)"/>
+    <param name="ocr_min_chars" value="$(arg ocr_min_chars)"/>
+  </node>
+
+</launch>

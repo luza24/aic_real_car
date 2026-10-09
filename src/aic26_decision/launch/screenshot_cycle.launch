@@ -4,17 +4,23 @@
 
   <include file="$(find aic26_navigation)/launch/navigation.launch" />
 
+  <arg name="route_file"     default="$(find aic26_decision)/config/screenshot_cycle.yaml"/>
+  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+  <arg name="output_dir"     default="$(find aic26_gazebo)/../../.datasets/screenshots/auto"/>
+
   <node pkg="image_view" type="image_view" name="image_view" output="screen">
     <remap from="image" to="/camera/image_raw"/>
   </node>
 
-  <node pkg="image_view" type="image_saver" name="image_saver" output="screen">
-    <remap from="image" to="/camera/image_raw"/>
-    <param name="filename_format" value="$(find aic26_gazebo)/../../.datasets/screenshots/auto/snap_%04i.jpg"/>
-    <param name="save_all_image" value="true"/>
-    <param name="sec_per_frame" value="0.167"/>
+  <node pkg="aic26_decision" type="screenshot_cycle.py" name="screenshot_cycle" output="screen">
+    <param name="route_file"     value="$(arg route_file)"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+    <param name="output_dir"     value="$(arg output_dir)"/>
+    <param name="image_topic"    value="/camera/image_raw"/>
+    <param name="result_topic"   value="/perception/result"/>
+    <param name="detect_topic"   value="/perception/detect"/>
+    <param name="light_topic"    value="/traffic_light/state"/>
+    <param name="shot_interval"  value="0.5"/>
   </node>
-
-  <node pkg="aic26_decision" type="screenshot_cycle.py" name="screenshot_cycle" output="screen" />
   
 </launch>

@@ -1,26 +1,96 @@
+# Dataset capture route for screenshot_cycle.py
+#
+# Mirrors the real inspection mission (config/tasks.yaml) waypoint by
+# waypoint so the collected images match the real run: same order, same
+# in-place turns, same dwell times.
+#
+# The vision detectors are replaced by a directly published result, so the
+# cycle can run end to end without any model. Each stop saves labelled
+# screenshots into .datasets/screenshots/<label>/.
+#
+# Fields:
+#   name    waypoint name in config/waypoints.yaml
+#   label   dataset sub folder for the images of this stop
+#   turn    rotate in place before shooting: "left", "right" or omitted
+#   dwell   seconds to stay still at the target before shooting (default 0)
+#   shots   number of pictures saved for this stop (default 1)
+#   wait    max seconds to wait for GREEN at a traffic light (default 0)
+#   light   traffic light model to watch, e.g. traffic_light_1
+#   result  json published on /perception/result to fake the vision output
+
 waypoints:
+  - name: "corner_1"
+    label: "10_leave_start"
+    shots: 1
+
   - name: "traffic_light_1"
-    x: 0.4
-    y: 1.7
-    yaw: 3.141592
-    dwell: 0.0
+    label: "20_light_1"
+    light: "traffic_light_1"
+    wait: 40
+    shots: 2
+
   - name: "station_1"
-    x: -1.7
-    y: 1.1
-    yaw: 4.712388
+    label: "30_people_b"
+    turn: "left"
     dwell: 2.0
+    shots: 3
+    result: '{"target": "people", "total": 8, "intruder": 0}'
+
   - name: "station_2"
-    x: -0.9
-    y: 0.45
-    yaw: 0.000000
+    label: "40_people_a"
+    turn: "left"
     dwell: 2.0
+    shots: 3
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
+  - name: "station_3"
+    label: "50_people_f"
+    turn: "left"
+    dwell: 2.0
+    shots: 2
+    result: '{"target": "people", "total": 2, "intruder": 2}'
+
+  - name: "station_3"
+    label: "60_people_c"
+    turn: "right"
+    dwell: 2.0
+    shots: 2
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
   - name: "traffic_light_2"
-    x: -0.1
-    y: -0.3
-    yaw: 4.712388
-    dwell: 0.0
+    label: "70_light_2"
+    light: "traffic_light_2"
+    wait: 40
+    shots: 2
+
+  - name: "traffic_light_2"
+    label: "80_people_d"
+    turn: "right"
+    dwell: 2.0
+    shots: 4
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
+  - name: "car_1"
+    label: "90_car_1"
+    turn: "right"
+    dwell: 2.0
+    shots: 5
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
+
+  - name: "car_2"
+    label: "91_car_2"
+    turn: "right"
+    dwell: 2.0
+    shots: 5
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "鄂D·7B5Q2", "plate_conf": 0.95}'
+
+  - name: "car_3"
+    label: "92_car_3"
+    turn: "right"
+    dwell: 2.0
+    shots: 5
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·PL12A", "plate_conf": 0.95}'
+
   - name: "start"
-    x: 1.7
-    y: 1.7
-    yaw: 3.141592
-    dwell: 0.0
+    label: "95_return_home"
+    shots: 1
