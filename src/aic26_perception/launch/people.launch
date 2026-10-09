@@ -1,0 +1,18 @@
+<launch>
+
+  <arg name="model_path"
+       default="$(find aic26_perception)/models/people_int8.onnx"/>
+
+  <node name="people_detector" pkg="aic26_perception"
+        type="people_detector.py" output="screen">
+    <param name="model_path"   value="$(arg model_path)"/>
+    <param name="image_in"     value="/camera/image_raw"/>
+    <param name="result_topic" value="/perception/result"/>
+    <param name="image_topic"  value="/perception/people/image"/>
+    <param name="detect_topic" value="/perception/detect"/>
+    <param name="input_size"   value="320"/>
+    <param name="conf"         value="0.5"/>
+    <param name="nms"          value="0.45"/>
+  </node>
+
+</launch>

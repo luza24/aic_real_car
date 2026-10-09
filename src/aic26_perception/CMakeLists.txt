@@ -18,6 +18,7 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   scripts/traffic_light_detector.py
+  scripts/people_detector.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

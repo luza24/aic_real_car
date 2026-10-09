@@ -7,7 +7,7 @@ waypoints:
   - name: "station_1"
     x: -0.4
     y: 1.7
-    yaw: 4.712388
+    yaw: 3.141592
     dwell: 2.0
   - name: "station_2"
     x: -1.7
