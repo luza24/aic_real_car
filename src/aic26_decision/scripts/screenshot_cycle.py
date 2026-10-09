@@ -21,9 +21,12 @@ import os
 
 import actionlib
 import rospy
+import tf
+import tf.transformations
 import yaml
 from cv_bridge import CvBridge
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
@@ -39,6 +42,15 @@ GREEN = 'GREEN'
 
 TURN_LEFT = 1.570796
 TURN_RIGHT = -1.570796
+
+
+def wrap_angle(angle):
+    # bring an angle into (-pi, pi]
+    while angle > 3.141592653589793:
+        angle -= 6.283185307179586
+    while angle <= -3.141592653589793:
+        angle += 6.283185307179586
+    return angle
 
 
 def make_goal(x, y, yaw):
@@ -69,6 +81,21 @@ class ScreenshotCycle(object):
         self.frame = None
 
         self.bridge = CvBridge()
+        self.listener = tf.TransformListener()
+        self.cmd_pub = rospy.Publisher(
+            rospy.get_param('~cmd_topic', '/cmd_vel'), Twist, queue_size=10)
+
+        self.turn_speed = rospy.get_param('~turn_speed', 0.8)
+        self.turn_tolerance = rospy.get_param('~turn_tolerance', 0.05)
+        self.turn_timeout = rospy.get_param('~turn_timeout', 20.0)
+        self.turn_rate = rospy.get_param('~turn_rate', 20.0)
+        self.turn_tf_timeout = rospy.get_param('~turn_tf_timeout', 3.0)
+        self.turn_settle = rospy.get_param('~turn_settle', 0.5)
+
+        # the nav stack (amcl + both costmaps) uses base_footprint, not base_link
+        self.global_frame = rospy.get_param('~global_frame', 'map')
+        self.base_frame = rospy.get_param('~base_frame', 'base_footprint')
+
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
             String, queue_size=10)
@@ -106,13 +133,70 @@ class ScreenshotCycle(object):
         return self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
 
     def turn_in_place(self, wp, direction):
-        # same 90 degree in place rotation the mission controller uses
-        yaw = wp["yaw"] + (TURN_LEFT if direction == "left" else TURN_RIGHT)
-        self.client.send_goal(make_goal(wp["x"], wp["y"], yaw))
-        if not self.client.wait_for_result():
-            rospy.logwarn("turn %s failed", direction)
+        return self.rotate_to(wrap_angle(wp["yaw"] +
+                              self.turn_angle(direction)), direction)
+
+    def turn_back(self, wp):
+        return self.rotate_to(wrap_angle(wp["yaw"]),
+                              self.short_way(wp["yaw"]))
+
+    def turn_angle(self, direction):
+        return TURN_LEFT if direction == "left" else TURN_RIGHT
+
+    def short_way(self, target):
+        yaw = self.current_yaw()
+        if yaw is None:
+            return "left"
+        return "left" if wrap_angle(target - yaw) >= 0.0 else "right"
+
+    def rotate_to(self, target, direction):
+        if self.current_yaw(self.turn_tf_timeout) is None:
+            rospy.logwarn("no %s->%s tf, cannot rotate",
+                          self.global_frame, self.base_frame)
             return False
-        return self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
+
+        sign = 1.0 if direction == "left" else -1.0
+        rate = rospy.Rate(self.turn_rate)
+        cmd = Twist()
+        start = rospy.Time.now()
+        deadline = start + rospy.Duration(self.turn_timeout)
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            yaw = self.current_yaw()
+            if yaw is None:
+                rospy.logwarn("lost %s->%s tf while rotating",
+                              self.global_frame, self.base_frame)
+                self.stop_motion()
+                return False
+            if abs(wrap_angle(target - yaw)) < self.turn_tolerance:
+                self.stop_motion()
+                rospy.sleep(self.turn_settle)
+                rospy.loginfo("rotated to %.2f rad", target)
+                return True
+            cmd.angular.z = self.turn_speed * sign
+            self.cmd_pub.publish(cmd)
+            rate.sleep()
+
+        self.stop_motion()
+        rospy.sleep(self.turn_settle)
+        rospy.logwarn("rotate to %.2f rad timed out after %.0fs",
+                      target, self.turn_timeout)
+        return False
+
+    def current_yaw(self, timeout=0.0):
+        deadline = rospy.Time.now() + rospy.Duration(timeout)
+        while not rospy.is_shutdown():
+            try:
+                trans = self.listener.lookupTransform(
+                    self.global_frame, self.base_frame, rospy.Time(0))
+                return tf.transformations.euler_from_quaternion(trans[1])[2]
+            except Exception:
+                if timeout <= 0.0 or rospy.Time.now() >= deadline:
+                    return None
+                rospy.sleep(0.05)
+        return None
+
+    def stop_motion(self):
+        self.cmd_pub.publish(Twist())
 
     def wait_green(self, model, timeout):
         # mirror mission_controller: leave on green, never block the cycle
@@ -192,6 +276,12 @@ class ScreenshotCycle(object):
             self.save_shot(stop.get("label", name))
             rospy.sleep(rospy.get_param('~shot_interval', 0.5))
 
+        # face the waypoint heading again so the next go_to starts from the
+        # planned orientation instead of the inspection heading
+        if turn in ("left", "right") and not self.turn_back(wp):
+            self.stop_motion()
+            rospy.logwarn("could not restore heading at %s, holding", name)
+
     def run(self):
         self.client.wait_for_server()
         rospy.loginfo("capture cycle started, %d stops", len(self.stops))
@@ -206,30 +296,6 @@ def main():
     rospy.init_node("screenshot_cycle")
     ScreenshotCycle().run()
 
-
-if __name__ == "__main__":
-    main()
-
-
-def main():
-    rospy.init_node("screenshot_cycle")
-    client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-    if not client.wait_for_server(rospy.Duration(20.0)):
-        rospy.logerr("move_base action server load failed")
-        return
-
-    waypoints = load_waypoints(os.path.join(cur_pkg_path(), "config", "screenshot_cycle.yaml"))
-
-    while not rospy.is_shutdown():
-        for wp in waypoints:
-            if rospy.is_shutdown():
-                break
-            rospy.loginfo("Going to %s", wp["name"])
-            client.send_goal(make_goal(wp))
-            if client.wait_for_result() and client.get_state() == GoalStatus.SUCCEEDED:
-                rospy.loginfo("Reached %s", wp["name"])
-            else:
-                rospy.logwarn("Failed to reach %s", wp["name"])
 
 if __name__ == "__main__":
     main()
