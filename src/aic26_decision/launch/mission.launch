@@ -15,6 +15,10 @@
     <param name="speech_topic"  value="/speech"/>
     <param name="detect_wait"   value="1.0"/>
     <param name="no_data_wait"  value="10.0"/>
+
+    <param name="cmd_topic"       value="/cmd_vel"/>
+    <param name="turn_tf_timeout" value="3.0"/>
+    <param name="turn_settle"     value="0.5"/>
   </node>
 
 </launch>
