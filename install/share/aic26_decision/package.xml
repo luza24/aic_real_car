@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aic26_decision</name>
+  <version>0.0.0</version>
+  <description>The aic26_decision package</description>
+
+  <maintainer email="govis@todo.todo">govis</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>actionlib</depend>
+  <depend>aic26_msgs</depend>
+  <depend>move_base_msgs</depend>
+  <depend>rospy</depend>
+  <depend>aic26_gazebo</depend>
+  <depend>aic26_navigation</depend>
+
+  <export>
+
+  </export>
+</package>

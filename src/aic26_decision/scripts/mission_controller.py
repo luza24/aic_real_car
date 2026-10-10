@@ -3,7 +3,10 @@ import json
 
 import actionlib
 import rospy
+import tf
+import tf.transformations
 import yaml
+from geometry_msgs.msg import Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
@@ -14,6 +17,15 @@ GREEN = 'GREEN'
 
 TURN_LEFT = 1.570796
 TURN_RIGHT = -1.570796
+
+
+def wrap_angle(angle):
+    # bring an angle into (-pi, pi]
+    while angle > 3.141592653589793:
+        angle -= 6.283185307179586
+    while angle <= -3.141592653589793:
+        angle += 6.283185307179586
+    return angle
 
 
 def make_goal(wp):
@@ -54,6 +66,21 @@ class MissionController(object):
 
         self.client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
 
+        self.listener = tf.TransformListener()
+        self.cmd_pub = rospy.Publisher(
+            rospy.get_param('~cmd_topic', '/cmd_vel'), Twist, queue_size=10)
+
+        self.turn_speed = rospy.get_param('~turn_speed', 0.8)
+        self.turn_tolerance = rospy.get_param('~turn_tolerance', 0.05)
+        self.turn_timeout = rospy.get_param('~turn_timeout', 20.0)
+        self.turn_rate = rospy.get_param('~turn_rate', 20.0)
+        self.turn_tf_timeout = rospy.get_param('~turn_tf_timeout', 3.0)
+        self.turn_settle = rospy.get_param('~turn_settle', 0.5)
+
+        # the nav stack (amcl + both costmaps) uses base_footprint, not base_link
+        self.global_frame = rospy.get_param('~global_frame', 'map')
+        self.base_frame = rospy.get_param('~base_frame', 'base_footprint')
+
     def on_vision(self, msg):
         if msg.state and msg.state != 'UNKNOWN':
             self.vision_states[msg.model_name] = msg.state
@@ -80,14 +107,82 @@ class MissionController(object):
         return self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
 
     def turn_in_place(self, wp, direction):
-        # rotate the robot in place by 90 degrees to face the people on a side
-        target = dict(wp)
-        target["yaw"] = wp["yaw"] + (TURN_LEFT if direction == "left" else TURN_RIGHT)
-        self.client.send_goal(make_goal(target))
-        if not self.client.wait_for_result():
-            rospy.logwarn("turn %s failed", direction)
+        """Rotate in place with cmd_vel instead of a move_base goal.
+
+        Sending a goal to move_base makes the local planner re-plan a path and
+        honour the costmap, so the robot can wander off the checkpoint or refuse
+        to turn. Here the navigation action server is left alone (costmaps stay
+        alive) and the spin is closed-loop on the map->base_footprint yaw.
+        """
+        target = wrap_angle(wp["yaw"] + self.turn_angle(direction))
+        return self.rotate_to(target, direction)
+
+    def turn_back(self, wp):
+        """Restore the waypoint heading after an inspection turn.
+
+        Without this the robot keeps the side facing the target and the next
+        move_base goal is accepted from a wrong heading, which is what makes it
+        drive off and push into a wall instead of following the global plan.
+        """
+        return self.rotate_to(wrap_angle(wp["yaw"]), self.short_way(wp["yaw"]))
+
+    def turn_angle(self, direction):
+        return TURN_LEFT if direction == "left" else TURN_RIGHT
+
+    def short_way(self, target):
+        yaw = self.current_yaw()
+        if yaw is None:
+            return "left"
+        return "left" if wrap_angle(target - yaw) >= 0.0 else "right"
+
+    def rotate_to(self, target, direction):
+        if self.current_yaw(self.turn_tf_timeout) is None:
+            rospy.logwarn("no %s->%s tf, cannot rotate",
+                          self.global_frame, self.base_frame)
             return False
-        return self.client.get_state() == actionlib.GoalStatus.SUCCEEDED
+
+        sign = 1.0 if direction == "left" else -1.0
+        rate = rospy.Rate(self.turn_rate)
+        cmd = Twist()
+        start = rospy.Time.now()
+        deadline = start + rospy.Duration(self.turn_timeout)
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            yaw = self.current_yaw()
+            if yaw is None:
+                rospy.logwarn("lost %s->%s tf while rotating",
+                              self.global_frame, self.base_frame)
+                self.stop_motion()
+                return False
+            if abs(wrap_angle(target - yaw)) < self.turn_tolerance:
+                self.stop_motion()
+                rospy.sleep(self.turn_settle)
+                rospy.loginfo("rotated to %.2f rad", target)
+                return True
+            cmd.angular.z = self.turn_speed * sign
+            self.cmd_pub.publish(cmd)
+            rate.sleep()
+
+        self.stop_motion()
+        rospy.sleep(self.turn_settle)
+        rospy.logwarn("rotate to %.2f rad timed out after %.0fs",
+                      target, self.turn_timeout)
+        return False
+
+    def current_yaw(self, timeout=0.0):
+        deadline = rospy.Time.now() + rospy.Duration(timeout)
+        while not rospy.is_shutdown():
+            try:
+                trans = self.listener.lookupTransform(
+                    self.global_frame, self.base_frame, rospy.Time(0))
+                return tf.transformations.euler_from_quaternion(trans[1])[2]
+            except Exception:
+                if timeout <= 0.0 or rospy.Time.now() >= deadline:
+                    return None
+                rospy.sleep(0.05)
+        return None
+
+    def stop_motion(self):
+        self.cmd_pub.publish(Twist())
 
     def wait_green(self, model, timeout):
         # leave on green; if the light never reports, do not block the mission
@@ -137,13 +232,17 @@ class MissionController(object):
             rospy.logwarn("failed to reach %s", task.get("name", ttype))
             return
 
+        turn = task.get("turn")
+        turned = False
+        if turn in ("left", "right"):
+            # rotate first: at a stop line the camera has to already face the
+            # light / people before we start waiting or detecting
+            turned = self.turn_in_place(wp, turn)
+
         if ttype == "traffic_light":
             self.wait_green(task["light"], task.get("wait", 30.0))
 
         if ttype == "inspect":
-            turn = task.get("turn")
-            if turn in ("left", "right"):
-                self.turn_in_place(wp, turn)
             rospy.sleep(task.get("dwell", 0.0))
             target = task.get("target")
             if target:
@@ -152,6 +251,13 @@ class MissionController(object):
                 self.detect_pub.publish(req)
                 rospy.sleep(rospy.get_param('~detect_wait', 1.0))
             self.speak(self.build_message(task))
+
+        # face the waypoint heading again so the next go_to starts from the
+        # planned orientation instead of the inspection heading
+        if turned and not self.turn_back(wp):
+            self.stop_motion()
+            rospy.logwarn("could not restore heading at %s, holding",
+                          task.get("name", ttype))
 
     def run(self):
         path = rospy.get_param("~tasks_file")
@@ -164,9 +270,15 @@ class MissionController(object):
 
         self.client.wait_for_server()
         rospy.loginfo("mission started, %d tasks", len(tasks))
-        for task in tasks:
-            rospy.loginfo("task: %s", task.get("name", task.get("type")))
-            self.run_task(task, waypoints)
+        try:
+            for task in tasks:
+                if rospy.is_shutdown():
+                    break
+                rospy.loginfo("task: %s", task.get("name", task.get("type")))
+                self.run_task(task, waypoints)
+        except KeyboardInterrupt:
+            self.stop_motion()
+            rospy.loginfo("mission interrupted by KeyboardInterrupt")
         rospy.loginfo("mission finished")
 
 

@@ -2,14 +2,19 @@
 #
 # Each task is executed in order by mission_controller.py:
 #   type: goto           navigate to waypoint, then continue
-#   type: traffic_light  wait at the stop line until GREEN, then pass
+#   type: traffic_light  turn (optional), wait at the stop line until GREEN, pass
 #   type: inspect        navigate, turn, dwell, trigger detection, report
 #   type: report         announce the collected results (no motion)
 #
+# The waypoint sequence mirrors config/screenshot_cycle.yaml (the dataset
+# route) so the captured images are taken from the same viewpoints as the
+# real run. This file keeps the real detectors, screenshot_cycle fakes them.
+#
 # Fields:
 #   waypoint   target name in waypoints.yaml
-#   turn       rotate in place before detecting: "left", "right" or omitted
-#              (in place cmd_vel rotation, the navigation stack is not used)
+#   turn       rotate in place before waiting/detecting: "left", "right" or
+#              omitted (in place cmd_vel rotation, the navigation stack is not
+#              used); the waypoint heading is restored afterwards
 #   dwell      seconds to stay still at the target (default 0)
 #   wait       max seconds to wait for GREEN at a traffic light (default 30)
 #   light      traffic light model to watch, e.g. traffic_light_1
@@ -81,6 +86,33 @@ tasks:
     dwell: 2.0
     target: "people"
     message: "Zone D people inspection finished."
+
+  - name: "car_1"
+    type: inspect
+    waypoint: "car_1"
+    dwell: 2.0
+    target: "car"
+    message: "Car 1 inspection finished."
+
+  - name: "car_2"
+    type: inspect
+    waypoint: "car_2"
+    turn: "right"
+    dwell: 2.0
+    target: "car"
+    message: "Car 2 inspection finished."
+
+  - name: "car_3"
+    type: inspect
+    waypoint: "car_3"
+    turn: "right"
+    dwell: 2.0
+    target: "car"
+    message: "Car 3 inspection finished."
+
+  - name: "return_back"
+    type: goto
+    waypoint: "corner_1"
 
   - name: "return_home"
     type: goto

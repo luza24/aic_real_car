@@ -80,6 +80,15 @@ class ScreenshotCycle(object):
         self.lights = {}
         self.frame = None
 
+        # per label shot bookkeeping so the cycle can loop until every stop has
+        # reached its target count (see run())
+        self.targets = {s.get("label", s["name"]): int(s.get("shots", 1))
+                        for s in self.stops}
+        self.counts = dict((label, 0) for label in self.targets)
+        self.cycle = 0
+        self.until_done = rospy.get_param('~until_done', True)
+        self.resume()
+
         self.bridge = CvBridge()
         self.listener = tf.TransformListener()
         self.cmd_pub = rospy.Publisher(
@@ -220,14 +229,23 @@ class ScreenshotCycle(object):
         if not os.path.isdir(folder):
             os.makedirs(folder)
 
-        self.shots += 1
-        name = "%s_%04i.jpg" % (label, self.shots)
+        # resume from what is already on disk: the cycle is expected to be run
+        # several times (or in a loop) until every label has enough images
+        index = self.counts.get(label, 0)
+        while os.path.exists(os.path.join(folder, "%s_%04i.jpg" % (label, index + 1))):
+            index += 1
+        index += 1
+
+        name = "%s_%04i.jpg" % (label, index)
         path = os.path.join(folder, name)
         try:
             import cv2
             frame = self.bridge.imgmsg_to_cv2(self.frame, 'bgr8')
             cv2.imwrite(path, frame)
-            rospy.loginfo("saved %s", path)
+            self.shots += 1
+            self.counts[label] = index
+            rospy.loginfo("saved %s (%d/%d)", path, index,
+                          self.targets.get(label, index))
         except Exception as err:
             rospy.logwarn("failed to save %s: %s", path, err)
 
@@ -272,8 +290,18 @@ class ScreenshotCycle(object):
         rospy.sleep(stop.get("dwell", 0.0))
         self.fake_vision(stop)
 
-        for _ in range(stop.get("shots", 1)):
-            self.save_shot(stop.get("label", name))
+        label = stop.get("label", name)
+        # in loop mode only top up the labels that are still short, so a long
+        # keyword interrupt does not leave one stop with a huge surplus
+        want = self.targets.get(label, 1)
+        if self.until_done:
+            todo = max(0, want - self.counts.get(label, 0))
+            todo = min(todo, int(stop.get("shots_per_pass", stop.get("shots", 1))))
+        else:
+            todo = int(stop.get("shots", 1))
+
+        for _ in range(todo):
+            self.save_shot(label)
             rospy.sleep(rospy.get_param('~shot_interval', 0.5))
 
         # face the waypoint heading again so the next go_to starts from the
@@ -282,14 +310,76 @@ class ScreenshotCycle(object):
             self.stop_motion()
             rospy.logwarn("could not restore heading at %s, holding", name)
 
+    def pending(self):
+        # labels that still need images, sorted so the summary is stable
+        return {label: self.targets[label] - self.counts.get(label, 0)
+                for label in sorted(self.targets)
+                if self.counts.get(label, 0) < self.targets[label]}
+
     def run(self):
         self.client.wait_for_server()
-        rospy.loginfo("capture cycle started, %d stops", len(self.stops))
-        for stop in self.stops:
-            if rospy.is_shutdown():
-                break
-            self.visit(stop)
-        rospy.loginfo("capture cycle finished, %d shots", self.shots)
+        rospy.loginfo("capture cycle started, %d stops, targets: %s",
+                      len(self.stops),
+                      ", ".join("%s=%d" % kv for kv in sorted(self.targets.items())))
+
+        try:
+            while not rospy.is_shutdown():
+                self.cycle += 1
+                rospy.loginfo("cycle %d starting (%.0f%% done)",
+                              self.cycle, self.progress())
+                for stop in self.stops:
+                    if rospy.is_shutdown():
+                        break
+                    self.visit(stop)
+
+                if not self.until_done:
+                    break
+
+                missing = self.pending()
+                if not missing:
+                    rospy.loginfo("all capture targets reached after %d cycles",
+                                  self.cycle)
+                    break
+                rospy.loginfo("cycle %d done, still short: %s",
+                              self.cycle,
+                              ", ".join("%s(+%d)" % kv for kv in missing.items()))
+        except KeyboardInterrupt:
+            rospy.loginfo("capture interrupted by KeyboardInterrupt")
+
+        missing = self.pending()
+        if missing:
+            rospy.logwarn("finished with %d shots, still short: %s",
+                          self.shots,
+                          ", ".join("%s(+%d)" % kv for kv in missing.items()))
+        else:
+            rospy.loginfo("capture cycle finished, %d shots, all targets met",
+                          self.shots)
+
+    def resume(self):
+        """Count the images already in out_dir so a re-run tops up, not refills.
+
+        Filenames are <label>_%04i.jpg, so the highest index tells us how many
+        shots this label already has. Without this a fresh process would start
+        at zero and write a whole extra batch on top of a finished label.
+        """
+        for label in self.targets:
+            folder = os.path.join(self.out_dir, label)
+            index = 0
+            while os.path.exists(
+                    os.path.join(folder, "%s_%04i.jpg" % (label, index + 1))):
+                index += 1
+            self.counts[label] = index
+        if any(self.counts.values()):
+            rospy.loginfo("resuming, found: %s",
+                          ", ".join("%s=%d/%d" % (l, self.counts[l], self.targets[l])
+                                    for l in sorted(self.targets)
+                                    if self.counts[l]))
+
+    def progress(self):
+        want = sum(self.targets.values())
+        got = sum(min(self.counts.get(label, 0), self.targets[label])
+                  for label in self.targets)
+        return 100.0 * got / want if want else 100.0
 
 
 def main():

@@ -1,0 +1,8 @@
+prefix=/home/govis/aic26_ws/install
+
+Name: aic26_decision
+Description: Description of aic26_decision
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

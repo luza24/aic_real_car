@@ -1,6 +1,6 @@
 waypoints:
   - name: "traffic_light_1"
-    x: 0.4
+    x: 0.6
     y: 1.7
     yaw: 3.141592
     dwell: 0.0
@@ -21,13 +21,13 @@ waypoints:
     dwell: 2.0
   - name: "traffic_light_2"
     x: -0.1
-    y: -0.3
+    y: -0.2
     yaw: 4.712388
     dwell: 0.0
   - name: "car_1"
     x: 1.1
-    y: -1.7
-    yaw: 1.570796
+    y: -1.8
+    yaw: 0.000000
     dwell: 0.0
   - name: "car_2"
     x: 1.1

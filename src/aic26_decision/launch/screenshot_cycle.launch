@@ -9,6 +9,7 @@
   <arg name="output_dir"     default="$(find aic26_gazebo)/../../.datasets/screenshots/auto"/>
   <arg name="start_delay"    default="10.0"/>
   <arg name="view_delay"     default="12.0"/>
+  <arg name="until_done"     default="true"/>
 
   <node pkg="aic26_decision" type="screenshot_cycle.py" name="screenshot_cycle"
         output="screen" launch-prefix="bash -c 'sleep $(arg start_delay); $0 $@'">
@@ -20,6 +21,9 @@
     <param name="detect_topic"   value="/perception/detect"/>
     <param name="light_topic"    value="/traffic_light/state"/>
     <param name="shot_interval"  value="0.5"/>
+    <!-- true: keep repeating the route until every "shots" target in
+         route_file is met; false: exactly one pass (old behaviour) -->
+    <param name="until_done"     value="$(arg until_done)"/>
 
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>

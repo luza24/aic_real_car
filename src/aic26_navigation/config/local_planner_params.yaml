@@ -10,8 +10,8 @@ TebLocalPlannerROS:
     type: "polygon"
     vertices: [[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]
 
-  xy_goal_tolerance: 0.15
-  yaw_goal_tolerance: 0.15
+  xy_goal_tolerance: 0.10
+  yaw_goal_tolerance: 0.10
   free_goal_vel: false
 
   weight_kinematics_nh: 1000.0
