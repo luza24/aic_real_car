@@ -1,5 +1,14 @@
 <launch>
 
+  <arg name="day_night" default="day"/>
+
+  <!-- gazebo only looks for plugins and models on its own env vars; catkin
+       sets neither, so point them at the built libs and this package's models -->
+  <env name="GAZEBO_PLUGIN_PATH"
+       value="$(find aic26_gazebo)/../../devel/lib:$(optenv GAZEBO_PLUGIN_PATH)"/>
+  <env name="GAZEBO_MODEL_PATH"
+       value="$(find aic26_gazebo)/models:$(optenv GAZEBO_MODEL_PATH)"/>
+
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="world_name"   value="$(find aic26_gazebo)/worlds/aic26-1.world"/>
     <arg name="use_sim_time" value="true"/>
@@ -9,6 +18,8 @@
     <arg name="debug"        value="false"/>
     <arg name="verbose"      value="true"/>
   </include>
+
+  <param name="/day_night" value="$(arg day_night)"/>
 
   <param name="robot_description"
          command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>

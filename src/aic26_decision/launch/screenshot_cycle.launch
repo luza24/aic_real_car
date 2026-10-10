@@ -1,6 +1,10 @@
 <launch>
 
-  <include file="$(find aic26_gazebo)/launch/aic26-1.launch" />
+  <arg name="day_night" default="day"/>
+
+  <include file="$(find aic26_gazebo)/launch/aic26-1.launch">
+    <arg name="day_night" value="$(arg day_night)"/>
+  </include>
 
   <include file="$(find aic26_navigation)/launch/navigation.launch" />
 

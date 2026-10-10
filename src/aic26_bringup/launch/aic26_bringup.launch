@@ -1,13 +1,16 @@
 <launch>
 
   <arg name="world"          default="aic26-1"/>
+  <arg name="day_night"      default="day"/>
   <arg name="map_file"       default="$(find aic26_slam)/maps/aic26-1.yaml"/>
   <arg name="use_navigation" default="true"/>
   <arg name="use_mission"    default="true"/>
   <arg name="use_perception" default="true"/>
   <arg name="use_rviz"       default="true"/>
 
-  <include file="$(find aic26_gazebo)/launch/$(arg world).launch"/>
+  <include file="$(find aic26_gazebo)/launch/$(arg world).launch">
+    <arg name="day_night" value="$(arg day_night)"/>
+  </include>
 
   <group if="$(arg use_navigation)">
     <include file="$(find aic26_navigation)/launch/navigation.launch">
