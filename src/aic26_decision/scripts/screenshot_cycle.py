@@ -18,6 +18,7 @@ cycle runs end to end without any model and the images are stored under
 
 import json
 import os
+import subprocess
 
 import actionlib
 import rospy
@@ -30,6 +31,13 @@ from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
 from tf.transformations import quaternion_from_euler
+
+try:
+    import rospkg
+    HAVE_ROSPKG = True
+except ImportError:
+    rospkg = None
+    HAVE_ROSPKG = False
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -87,6 +95,11 @@ class ScreenshotCycle(object):
         self.counts = dict((label, 0) for label in self.targets)
         self.cycle = 0
         self.until_done = rospy.get_param('~until_done', True)
+
+        # advance the sky box time by this many hours after every cycle so the
+        # dataset covers different lighting (see advance_sky_time)
+        self.sky_step = rospy.get_param('~sky_step', 1.1)
+        self.day_night_script = self.find_day_night_script()
         self.resume()
 
         self.bridge = CvBridge()
@@ -316,6 +329,43 @@ class ScreenshotCycle(object):
                 for label in sorted(self.targets)
                 if self.counts.get(label, 0) < self.targets[label]}
 
+    def find_day_night_script(self):
+        """Locate aic26_gazebo/scripts/day_night.py, or None if not found."""
+        explicit = rospy.get_param('~day_night_script', '')
+        if explicit:
+            return explicit if os.path.isfile(explicit) else None
+        if HAVE_ROSPKG:
+            try:
+                candidate = os.path.join(
+                    rospkg.RosPack().get_path('aic26_gazebo'),
+                    'scripts', 'day_night.py')
+                if os.path.isfile(candidate):
+                    return candidate
+            except rospkg.ResourceNotFound:
+                pass
+        return None
+
+    def advance_sky_time(self):
+        """Move the sky box time forward by ~sky_step hours via day_night.py.
+
+        Calls the day_night script with _time:=<current + step>; the script
+        wraps the value into [0, 24) and writes /sky_time, which the gazebo
+        light_switch plugin turns into the actual sun / headlights.
+        """
+        if not self.sky_step:
+            return
+        if not self.day_night_script:
+            rospy.logwarn('day_night.py not found, sky time not advanced')
+            return
+
+        nxt = (rospy.get_param('/sky_time', 10.0) + float(self.sky_step)) % 24.0
+        try:
+            subprocess.call(['python3', self.day_night_script,
+                             '_time:=%s' % nxt])
+            rospy.loginfo('sky time advanced to %.2fh', nxt)
+        except OSError as err:
+            rospy.logwarn('could not run day_night.py: %s', err)
+
     def run(self):
         self.client.wait_for_server()
         rospy.loginfo("capture cycle started, %d stops, targets: %s",
@@ -331,6 +381,9 @@ class ScreenshotCycle(object):
                     if rospy.is_shutdown():
                         break
                     self.visit(stop)
+
+                # move the sky box forward so the next pass sees new lighting
+                self.advance_sky_time()
 
                 if not self.until_done:
                     break

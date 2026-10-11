@@ -1,9 +1,14 @@
 <launch>
 
   <arg name="day_night" default="day"/>
+  <!-- optional sky box time of day in hours [0..24]; overrides day_night -->
+  <arg name="sky_time"  default=""/>
+  <!-- hours added to the sky time after every capture cycle -->
+  <arg name="sky_step"  default="1.1"/>
 
   <include file="$(find aic26_gazebo)/launch/aic26-1.launch">
     <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time"  value="$(arg sky_time)"/>
   </include>
 
   <include file="$(find aic26_navigation)/launch/navigation.launch" />
@@ -25,6 +30,8 @@
     <param name="detect_topic"   value="/perception/detect"/>
     <param name="light_topic"    value="/traffic_light/state"/>
     <param name="shot_interval"  value="0.5"/>
+    <!-- advance the sky box time after every cycle (0 disables it) -->
+    <param name="sky_step"       value="$(arg sky_step)"/>
     <!-- true: keep repeating the route until every "shots" target in
          route_file is met; false: exactly one pass (old behaviour) -->
     <param name="until_done"     value="$(arg until_done)"/>

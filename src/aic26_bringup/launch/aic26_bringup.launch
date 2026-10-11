@@ -2,6 +2,10 @@
 
   <arg name="world"          default="aic26-1"/>
   <arg name="day_night"      default="day"/>
+  <!-- optional sky box time of day in hours [0..24]; overrides day_night -->
+  <arg name="sky_time"       default=""/>
+  <!-- launch the day/night sky time GUI (needs a display) -->
+  <arg name="day_night_gui"  default="false"/>
   <arg name="map_file"       default="$(find aic26_slam)/maps/aic26-1.yaml"/>
   <arg name="use_navigation" default="true"/>
   <arg name="use_mission"    default="true"/>
@@ -10,7 +14,11 @@
 
   <include file="$(find aic26_gazebo)/launch/$(arg world).launch">
     <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time"  value="$(arg sky_time)"/>
   </include>
+
+  <node if="$(arg day_night_gui)" pkg="aic26_gazebo" type="day_night.py"
+        name="day_night_gui" output="screen" args="_gui:=true"/>
 
   <group if="$(arg use_navigation)">
     <include file="$(find aic26_navigation)/launch/navigation.launch">

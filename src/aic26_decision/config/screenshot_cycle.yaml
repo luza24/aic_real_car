@@ -27,86 +27,93 @@
 
 waypoints:
   - name: "corner_1"
-    label: "10_leave_start"
+    label: "010_leave_start"
     shots: 20
     shots_per_pass: 1
 
   - name: "traffic_light_1"
-    label: "20_light_1"
+    label: "020_light_1"
     light: "traffic_light_1"
     wait: 40
-    shots: 40
-    shots_per_pass: 1
+    shots: 60
+    shots_per_pass: 3
 
   - name: "station_1"
-    label: "30_people_b"
+    label: "030_people_b"
     turn: "left"
     dwell: 2.0
-    shots: 120
-    shots_per_pass: 1
+    shots: 100
+    shots_per_pass: 5
     result: '{"target": "people", "total": 8, "intruder": 0}'
 
   - name: "station_2"
-    label: "40_people_a"
+    label: "040_people_a"
     turn: "left"
     dwell: 2.0
-    shots: 120
-    shots_per_pass: 1
+    shots: 100
+    shots_per_pass: 5
     result: '{"target": "people", "total": 4, "intruder": 0}'
 
   - name: "station_3"
-    label: "50_people_f"
+    label: "050_people_f"
     turn: "left"
     dwell: 2.0
-    shots: 60
-    shots_per_pass: 1
+    shots: 100
+    shots_per_pass: 5
     result: '{"target": "people", "total": 2, "intruder": 2}'
 
   - name: "station_3"
-    label: "60_people_c"
+    label: "060_people_c"
     turn: "right"
     dwell: 2.0
-    shots: 60
-    shots_per_pass: 1
+    shots: 100
+    shots_per_pass: 5
     result: '{"target": "people", "total": 4, "intruder": 0}'
 
   - name: "traffic_light_2"
-    label: "80_people_d"
+    label: "070_people_d"
     turn: "right"
     dwell: 2.0
-    shots: 120
-    shots_per_pass: 1
+    shots: 100
+    shots_per_pass: 5
     result: '{"target": "people", "total": 4, "intruder": 0}'
 
+  - name: "traffic_light_2"
+    label: "080_light_2"
+    light: "traffic_light_2"
+    wait: 40
+    shots: 60
+    shots_per_pass: 3
+
   - name: "car_1"
-    label: "90_car_1"
+    label: "090_car_1"
     dwell: 2.0
-    shots: 80
-    shots_per_pass: 1
+    shots: 40
+    shots_per_pass: 2
     result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
 
   - name: "car_2"
-    label: "91_car_2"
+    label: "091_car_2"
     turn: "right"
     dwell: 2.0
-    shots: 80
-    shots_per_pass: 1
+    shots: 40
+    shots_per_pass: 2
     result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "鄂D·7B5Q2", "plate_conf": 0.95}'
 
   - name: "car_3"
-    label: "92_car_3"
+    label: "092_car_3"
     turn: "right"
     dwell: 2.0
-    shots: 80
-    shots_per_pass: 1
+    shots: 40
+    shots_per_pass: 2
     result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·PL12A", "plate_conf": 0.95}'
 
   - name: "corner_1"
-    label: "95_return_back"
+    label: "100_return_back"
     shots: 20
     shots_per_pass: 1
 
   - name: "start"
-    label: "96_return_home"
+    label: "101_return_home"
     shots: 20
     shots_per_pass: 1

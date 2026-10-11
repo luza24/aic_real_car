@@ -18,6 +18,6 @@ laser_max_range: 12.0
 laser_min_range: 0.1
 
 set_initial_pose: true
-initial_pose_x: 1.7
+initial_pose_x: 1.6
 initial_pose_y: 1.7
 initial_pose_a: 3.141592

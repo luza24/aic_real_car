@@ -46,11 +46,11 @@
     <xacro:property name="camera_width" value="0.03"/>
     <xacro:property name="camera_height" value="0.02"/>
     
-    <xacro:property name="camera_x" value="${mount_x + mount_length / 2 + camera_length / 2}"/>
+    <xacro:property name="camera_x" value="${mount_length / 2 + camera_length / 2}"/>
 
     <xacro:property name="camera_y" value="0.0"/>
 
-    <xacro:property name="camera_z" value="${mount_z + mount_height / 4}"/> 
+    <xacro:property name="camera_z" value="${mount_height / 4}"/> 
     
     <xacro:property name="camera_m" value="0.01"/>
 

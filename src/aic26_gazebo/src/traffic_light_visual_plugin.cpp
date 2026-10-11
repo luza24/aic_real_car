@@ -1,7 +1,9 @@
 #include <mutex>
-#include <queue>
+#include <map>
 #include <string>
 #include <functional>
+#include <utility>
+#include <vector>
 
 #include <gazebo/common/Plugin.hh>
 #include <gazebo/common/Events.hh>
@@ -47,33 +49,55 @@ private:
     void OnCommand(const aic26_msgs::TrafficLightCommand::ConstPtr& _msg) {
         if (!_msg->model_name.empty() && _msg->model_name != this->model_name_) return;
 
+        // Remember the desired material per light. This both coalesces repeated
+        // commands and lets us re-apply the state once the render scene has
+        // finished building the visual (the world may still be loading when the
+        // first command arrives).
         std::lock_guard<std::mutex> lock(this->queue_mutex_);
-        this->material_queue_.push({_msg->light_name, _msg->material_name});
+        this->desired_materials_[_msg->light_name] = _msg->material_name;
+        this->pending_dirty_ = true;
     }
 
     void OnPreRender() {
-        std::queue<std::pair<std::string, std::string>> local_queue;
+        std::map<std::string, std::string> desired;
         {
             std::lock_guard<std::mutex> lock(this->queue_mutex_);
-            std::swap(local_queue, this->material_queue_);
+            // Only touch the scene when something changed; re-applying every
+            // frame would be wasteful. Commands that failed because the visual
+            // was not ready yet keep pending_dirty_ set, so they are retried.
+            if (!this->pending_dirty_) return;
+            desired = this->desired_materials_;
         }
 
-        while (!local_queue.empty()) {
-            auto [light_name, material_name] = local_queue.front();
-            local_queue.pop();
+        rendering::ScenePtr scene = rendering::get_scene();
+        if (!scene) return;
 
-            rendering::ScenePtr scene = rendering::get_scene();
-            if (!scene) continue;
+        bool all_applied = true;
+        for (const auto& kv : desired) {
+            const std::string& light_name = kv.first;
+            const std::string& material_name = kv.second;
 
-            const std::string target_name = this->model_name_ + "::gantry::" + light_name;
+            const std::string target_name =
+                this->model_name_ + "::gantry::" + light_name;
             rendering::VisualPtr target = scene->GetVisual(target_name);
             if (!target) {
-                ROS_WARN("[traffic_light_visual_plugin] visual not found: %s",
-                         target_name.c_str());
+                // The scene is not fully built yet (gzclient still loading the
+                // world). Keep the command pending and try again next frame
+                // instead of dropping it, otherwise the light would stay dark
+                // until the next phase change.
+                all_applied = false;
                 continue;
             }
 
             target->SetMaterial(material_name);
+        }
+
+        if (all_applied) {
+            std::lock_guard<std::mutex> lock(this->queue_mutex_);
+            // Only clear the dirty flag if no newer command arrived meanwhile.
+            if (this->desired_materials_ == desired) {
+                this->pending_dirty_ = false;
+            }
         }
     }
 
@@ -83,7 +107,8 @@ private:
     ros::Subscriber sub_;
 
     std::mutex queue_mutex_;
-    std::queue<std::pair<std::string, std::string>> material_queue_;
+    std::map<std::string, std::string> desired_materials_;
+    bool pending_dirty_ = false;
 
     gazebo::event::ConnectionPtr pre_render_conn_;
 };

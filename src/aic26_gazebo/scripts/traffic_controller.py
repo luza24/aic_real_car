@@ -107,6 +107,16 @@ def main():
     state_topic = rospy.get_param('~state_topic', '/traffic_light/state')
     rate_hz   = rospy.get_param('~rate_hz', 20.0)
     phase_offset = rospy.get_param('~phase_offset', 15.0)
+    # Seconds to wait after the first subscriber connects before starting the
+    # clock. gzclient loads the world asynchronously and only then can its
+    # visual plugin actually apply materials, so give the render scene time to
+    # come up. 0 disables the wait.
+    startup_delay = rospy.get_param('~startup_delay', 5.0)
+    # Re-publish the full state of every light at this period (seconds) even if
+    # nothing changed. This lets a late-joining subscriber (e.g. a gzclient that
+    # finished loading after we started) converge to the correct phase without
+    # waiting for the next phase transition. <= 0 disables the refresh.
+    refresh_period = rospy.get_param('~refresh_period', 2.0)
 
     lights = [
         {'model': 'traffic_light_1', 'offset': 0.0},
@@ -122,6 +132,12 @@ def main():
     while pub.get_num_connections() == 0 and not rospy.is_shutdown():
         rospy.sleep(0.05)
 
+    # gzclient may still be building the render scene when the subscriber
+    # appears; wait a moment so the first command is not lost by the visual
+    # plugin.
+    if startup_delay > 0 and not rospy.is_shutdown():
+        rospy.sleep(startup_delay)
+
     rospy.loginfo(
         "traffic_controller started: cycle=%.0fs (R=%.0f G=%.0f Y=%.0f)",
         CYCLE, DURATION['RED'], DURATION['GREEN'], DURATION['YELLOW'])
@@ -130,6 +146,7 @@ def main():
 
     # publish order only when the command chaged
     last_phase = {cfg['model']: None for cfg in lights}
+    last_refresh = 0.0
 
     # t = 0 initialy
     start_time = rospy.Time.now()
@@ -138,17 +155,25 @@ def main():
     while not rospy.is_shutdown():
         global_t = (rospy.Time.now() - start_time).to_sec()
 
+        # Periodic full-state refresh for subscribers that join late.
+        refresh_due = (refresh_period > 0.0 and
+                       global_t - last_refresh >= refresh_period)
+
         for cfg in lights:
             local_t = global_t - cfg['offset']
             phase = phase_at(local_t)
 
-            if phase != last_phase[cfg['model']]:
+            if phase != last_phase[cfg['model']] or refresh_due:
                 publish_phase(pub, cfg['model'], phase)
                 publish_state(state_pub, cfg['model'], phase)
+                if phase != last_phase[cfg['model']]:
+                    rospy.loginfo(
+                        "[%s] -> %-6s  (global=%6.1fs  local=%6.1fs)",
+                        cfg['model'], phase, global_t, local_t)
                 last_phase[cfg['model']] = phase
-                rospy.loginfo(
-                    "[%s] -> %-6s  (global=%6.1fs  local=%6.1fs)",
-                    cfg['model'], phase, global_t, local_t)
+
+        if refresh_due:
+            last_refresh = global_t
 
         rate.sleep()
 

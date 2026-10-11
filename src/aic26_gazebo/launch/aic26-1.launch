@@ -1,9 +1,10 @@
 <launch>
 
   <arg name="day_night" default="day"/>
+  <arg name="sky_time"  default=""/>
 
-  <!-- gazebo only looks for plugins and models on its own env vars; catkin
-       sets neither, so point them at the built libs and this package's models -->
+  <arg name="day_night_gui_delay"  default="12.0"/>
+
   <env name="GAZEBO_PLUGIN_PATH"
        value="$(find aic26_gazebo)/../../devel/lib:$(optenv GAZEBO_PLUGIN_PATH)"/>
   <env name="GAZEBO_MODEL_PATH"
@@ -20,12 +21,15 @@
   </include>
 
   <param name="/day_night" value="$(arg day_night)"/>
+  <group if="$(eval arg('sky_time') != '')">
+    <param name="/sky_time" value="$(arg sky_time)"/>
+  </group>
 
   <param name="robot_description"
          command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
 
   <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
-        args="-param robot_description -urdf -model armbot -x 1.7 -y 1.7 -z 0 -Y 3.141592"
+        args="-param robot_description -urdf -model armbot -x 1.6 -y 1.7 -z 0 -Y 3.141592"
         output="screen"/>
 
   <node name="robot_state_publisher" pkg="robot_state_publisher"
@@ -36,11 +40,18 @@
     <param name="state_topic"   value="/traffic_light/state"/>
     <param name="rate_hz"       value="20.0"/>
     <param name="phase_offset"  value="10.0"/>
+    <param name="startup_delay"  value="6.0"/>
+    <param name="refresh_period" value="2.0"/>
     <rosparam param="durations">
       RED:    10
       GREEN:  15
       YELLOW:  3
     </rosparam>
+  </node>
+
+  <node pkg="aic26_gazebo" type="day_night.py" name="day_night_gui" output="screen"
+        launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
+    <param name="gui" value="true"/>
   </node>
 
 </launch>
