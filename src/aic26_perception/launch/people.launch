@@ -10,7 +10,7 @@
     <param name="result_topic" value="/perception/result"/>
     <param name="image_topic"  value="/perception/people/image"/>
     <param name="detect_topic" value="/perception/detect"/>
-    <param name="input_size"   value="320"/>
+    <param name="input_size"   value="640"/>
     <param name="conf"         value="0.5"/>
     <param name="nms"          value="0.45"/>
   </node>

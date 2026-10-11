@@ -14,6 +14,11 @@
   <depend>image_transport</depend>
   <depend>rospy</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <!-- runtime python packages (pip install, not rosdep):
+         onnxruntime  - preferred ONNX backend for the int8 models
+         easyocr      - licence plate reader used by car_detector -->
 
   <export>
 

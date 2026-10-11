@@ -2,7 +2,7 @@
 
 Place the int8 ONNX models here.
 
-## traffic_light_int8.onnx
+## traffic_int8.onnx
 
 Class order used by traffic_light_detector.py:
 
@@ -49,8 +49,18 @@ aic26_gazebo.
 
 ## Common
 
-Input : 320x320 letterboxed BGR image, scaled to [0, 1]
+Input : 640x640 letterboxed BGR image, scaled to [0, 1]
 Output: YOLOv5/v8 style tensor [1, 4 + num_classes, num_anchors]
+
+The nodes read the fixed input size straight from the model, so the
+``~input_size`` parameter (default 640) is only a fallback and is overridden
+by the value exported in the ONNX graph.
+
+Backend: the detectors use onnxruntime when it is installed, because
+OpenCV's ``dnn`` module cannot execute the int8 quantisation used by these
+models. ``cv2.dnn`` is kept as a fallback for float models.
+
+    pip install onnxruntime        # CPU, enough for these models
 
 These files are intentionally missing. The nodes log a warning and publish
 empty/UNKNOWN results when a model file is absent.

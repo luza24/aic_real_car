@@ -26,15 +26,19 @@ detector still works) when the plugin or its models are unavailable.
 
 import json
 import os
+import sys
 import threading
 import time
 
 import cv2
-import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+
+# the shared YOLO backend/helpers live next to this script
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from perception_common import YoloNet, crop_roi      # noqa: E402
 
 try:
     import easyocr
@@ -52,27 +56,6 @@ PLATE_ALLOWLIST = ("苏沪京渝津冀晋蒙辽吉黑皖闽赣鲁豫鄂湘粤桂
 
 COLOR_CAR = (255, 200, 0)
 COLOR_PLATE = (0, 255, 255)
-
-
-def letterbox(img, size):
-    h, w = img.shape[:2]
-    scale = min(size / w, size / h)
-    nw, nh = int(round(w * scale)), int(round(h * scale))
-    resized = cv2.resize(img, (nw, nh))
-    canvas = np.full((size, size, 3), 114, np.uint8)
-    dx, dy = (size - nw) // 2, (size - nh) // 2
-    canvas[dy:dy + nh, dx:dx + nw] = resized
-    return canvas, scale, dx, dy
-
-
-def crop_roi(img, roi, pad=0.05):
-    """Crop ``roi`` = [x0, y0, x1, y1] fractions of ``img`` (clamped)."""
-    h, w = img.shape[:2]
-    x0 = max(0, min(w, int(round(w * (roi[0] - pad)))))
-    y0 = max(0, min(h, int(round(h * (roi[1] - pad)))))
-    x1 = max(0, min(w, int(round(w * (roi[2] + pad)))))
-    y1 = max(0, min(h, int(round(h * (roi[3] + pad)))))
-    return img[y0:y1, x0:x1]
 
 
 def preprocess(crop, scale=3.0, binary=False):
@@ -96,12 +79,11 @@ def tidy(text):
                    if not ch.isspace() and ch not in '·•.。,，:：-_/\\|')
 
 
-
 class CarDetector(object):
     def __init__(self):
         self.model_path = rospy.get_param(
             '~model_path', self.default_model_path())
-        self.size = rospy.get_param('~input_size', 320)
+        self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
 
@@ -114,7 +96,9 @@ class CarDetector(object):
         self.ocr_wait = float(rospy.get_param('~ocr_wait', 8.0))
 
         self.bridge = CvBridge()
-        self.net = self.load_model()
+        self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
+                           nms=self.nms, num_classes=len(CLASSES),
+                           log=self._log)
 
         self.reader = None
         self.reader_lock = threading.Lock()
@@ -139,60 +123,22 @@ class CarDetector(object):
         rospy.loginfo("car_detector ready (class 'car', easyocr=%s)",
                       'yes' if easyocr else 'MISSING')
 
+    @staticmethod
+    def _log(level, msg, *args):
+        getattr(rospy, 'log' + level, rospy.loginfo)(msg, *args)
+
     def default_model_path(self):
         pkg = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(pkg, 'models', 'car_int8.onnx')
 
-    def load_model(self):
-        if not os.path.isfile(self.model_path):
-            rospy.logwarn("model not found: %s, no car will be read",
-                          self.model_path)
-            return None
-        try:
-            net = cv2.dnn.readNetFromONNX(self.model_path)
-        except cv2.error as err:
-            rospy.logwarn("failed to load model: %s", err)
-            return None
-        return net
-
     def infer(self, frame):
         # returns a list of (class_name, score, box)
-        img, scale, dx, dy = letterbox(frame, self.size)
-        blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (self.size, self.size),
-                                     swapRB=True, crop=False)
-        self.net.setInput(blob)
-        out = self.net.forward()[0]
-
-        # accept both [4+nc, N] and [N, 4+nc] export layouts
-        if out.shape[0] < out.shape[1]:
-            preds = out.T
-        else:
-            preds = out
-
-        boxes, scores, ids = [], [], []
-        for det in preds:
-            cls_scores = det[4:]
-            obj = float(np.max(cls_scores))
-            if obj < self.conf:
-                continue
-            cx, cy, bw, bh = [float(v) for v in det[:4]]
-            x = (cx - bw / 2 - dx) / scale
-            y = (cy - bh / 2 - dy) / scale
-            boxes.append([x, y, bw / scale, bh / scale])
-            scores.append(obj)
-            ids.append(int(np.argmax(cls_scores)))
-
-        if not boxes:
-            return []
-
-        keep = np.array(cv2.dnn.NMSBoxes(boxes, scores, self.conf, self.nms))
-        if keep.size == 0:
-            return []
         dets = []
-        for i in keep.flatten():
-            if ids[i] < len(CLASSES):
-                dets.append((CLASSES[ids[i]], scores[i], boxes[i]))
+        for cls_id, score, box in self.net.infer(frame):
+            if 0 <= cls_id < len(CLASSES):
+                dets.append((CLASSES[cls_id], score, box))
         return dets
+
 
     # ------------------------------------------------------------------ ocr
     def load_reader(self):
@@ -201,7 +147,8 @@ class CarDetector(object):
                 if easyocr is None:
                     raise RuntimeError("easyocr is not installed")
                 if not self.ocr_gpu:
-                    os.environ.setdefault('CUDA_VISIBLE_DEVICES', '')
+                    # force CPU so easyocr does not try to init CUDA
+                    os.environ['CUDA_VISIBLE_DEVICES'] = ''
                 rospy.loginfo("car_detector: loading easyocr (CPU) ...")
                 self.reader = easyocr.Reader(['ch_sim', 'en'],
                                              gpu=self.ocr_gpu, verbose=False)
@@ -280,22 +227,38 @@ class CarDetector(object):
             rospy.loginfo("car read restarted")
 
     def on_image(self, msg):
-        if self.net is None:
+        if not self.net.ready:
             return
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)
         for name, score, box in dets:
             self.seen.add(name)
-            # kick off OCR for the strongest car once per detection
-            if box is dets[0][2]:
-                self.read_plate_async(frame, box)
+        # kick off OCR for the strongest car (detections come NMS-sorted by
+        # score, but sort defensively so the pick does not depend on that)
+        if dets:
+            best = max(dets, key=lambda d: d[1])
+            self.read_plate_async(frame, best[2])
+        self.wait_for_ocr()
         self.publish_result(dets)
         self.publish_debug(frame, dets)
 
+    def wait_for_ocr(self):
+        """Give a freshly started OCR read up to ``~ocr_wait`` to finish.
+
+        The mission triggers a read and speaks a moment later, so publishing
+        the plate as soon as the worker is done keeps the result in the same
+        window without blocking the detector for long.
+        """
+        if self.plate_done or self.ocr_thread is None:
+            return
+        self.ocr_thread.join(self.ocr_wait)
+
     def publish_result(self, dets):
-        boxes = {name: [round(float(v), 1) for v in box]
-                 for name, _, box in dets}
+        boxes = {}
+        for name, _, box in dets:
+            boxes.setdefault(name, []).append(
+                [round(float(v), 1) for v in box])
 
         out = String()
         out.data = json.dumps({
@@ -307,6 +270,7 @@ class CarDetector(object):
             'boxes': boxes,
         })
         self.result_pub.publish(out)
+
 
     def publish_debug(self, frame, dets):
         for name, score, box in dets:

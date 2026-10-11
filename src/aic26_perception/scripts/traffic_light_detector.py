@@ -9,10 +9,14 @@ Runs an int8 ONNX model on the camera stream and publishes the light state.
     pub : /perception/traffic_light            (aic26_msgs/TrafficLightState)
     pub : /perception/traffic_light/image      (sensor_msgs/Image, debug)
 
+The reported ``model_name`` comes from the ``~node_name`` parameter and has to
+match the traffic light model in the world file (``traffic_light_1`` /
+``traffic_light_2``), so the mission controller can key the state by light.
+
 The model is not shipped with the repository. Train a detector with the
 classes below, export it to int8 ONNX and place it at:
 
-    aic26_perception/models/traffic_light_int8.onnx
+    aic26_perception/models/traffic_int8.onnx
 
 Model classes (fixed order):
     0: red_off
@@ -27,14 +31,18 @@ detected and the light state is the color whose lens is "on".
 """
 
 import os
+import sys
 
 import cv2
-import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 
 from aic26_msgs.msg import TrafficLightState
+
+# the shared YOLO backend/helpers live next to this script
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from perception_common import YoloNet      # noqa: E402
 
 CLASSES = ['red_off', 'red_on',
            'green_off', 'green_on',
@@ -55,28 +63,22 @@ def parse_class(name):
     return color, flag == 'on'
 
 
-
-def letterbox(img, size):
-    h, w = img.shape[:2]
-    scale = min(size / w, size / h)
-    nw, nh = int(round(w * scale)), int(round(h * scale))
-    resized = cv2.resize(img, (nw, nh))
-    canvas = np.full((size, size, 3), 114, np.uint8)
-    dx, dy = (size - nw) // 2, (size - nh) // 2
-    canvas[dy:dy + nh, dx:dx + nw] = resized
-    return canvas, scale, dx, dy
-
-
 class TrafficLightDetector(object):
     def __init__(self):
         self.model_path = rospy.get_param(
             '~model_path', self.default_model_path())
-        self.size = rospy.get_param('~input_size', 320)
+        self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
 
+        # model_name reported to the mission controller; must match the light
+        # model in the world file, e.g. traffic_light_1 / traffic_light_2
+        self.model_name = rospy.get_param('~node_name', 'traffic_light')
+
         self.bridge = CvBridge()
-        self.net = self.load_model()
+        self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
+                           nms=self.nms, num_classes=len(CLASSES),
+                           log=self._log)
 
         self.state_pub = rospy.Publisher(
             rospy.get_param('~state_topic', '/perception/traffic_light'),
@@ -90,60 +92,22 @@ class TrafficLightDetector(object):
         rospy.loginfo("traffic_light_detector ready (classes: %s)",
                       ','.join(CLASSES))
 
+    @staticmethod
+    def _log(level, msg, *args):
+        getattr(rospy, 'log' + level, rospy.loginfo)(msg, *args)
+
     def default_model_path(self):
         pkg = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        return os.path.join(pkg, 'models', 'traffic_light_int8.onnx')
-
-    def load_model(self):
-        if not os.path.isfile(self.model_path):
-            rospy.logwarn("model not found: %s, state will be UNKNOWN",
-                          self.model_path)
-            return None
-        try:
-            net = cv2.dnn.readNetFromONNX(self.model_path)
-        except cv2.error as err:
-            rospy.logwarn("failed to load model: %s", err)
-            return None
-        return net
+        return os.path.join(pkg, 'models', 'traffic_int8.onnx')
 
     def infer(self, frame):
         # returns a list of (class_name, score, box)
-        img, scale, dx, dy = letterbox(frame, self.size)
-        blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (self.size, self.size),
-                                     swapRB=True, crop=False)
-        self.net.setInput(blob)
-        out = self.net.forward()[0]
-
-        # accept both [4+nc, N] and [N, 4+nc] export layouts
-        if out.shape[0] < out.shape[1]:
-            preds = out.T
-        else:
-            preds = out
-
-        boxes, scores, ids = [], [], []
-        for det in preds:
-            cls_scores = det[4:]
-            obj = float(np.max(cls_scores))
-            if obj < self.conf:
-                continue
-            cx, cy, bw, bh = [float(v) for v in det[:4]]
-            x = (cx - bw / 2 - dx) / scale
-            y = (cy - bh / 2 - dy) / scale
-            boxes.append([x, y, bw / scale, bh / scale])
-            scores.append(obj)
-            ids.append(int(np.argmax(cls_scores)))
-
-        if not boxes:
-            return []
-
-        keep = np.array(cv2.dnn.NMSBoxes(boxes, scores, self.conf, self.nms))
-        if keep.size == 0:
-            return []
         dets = []
-        for i in keep.flatten():
-            if ids[i] < len(CLASSES):
-                dets.append((CLASSES[ids[i]], scores[i], boxes[i]))
+        for cls_id, score, box in self.net.infer(frame):
+            if 0 <= cls_id < len(CLASSES):
+                dets.append((CLASSES[cls_id], score, box))
         return dets
+
 
     def light_state(self, dets):
         # the state is the color whose lens is detected as "on"
@@ -157,7 +121,7 @@ class TrafficLightDetector(object):
         return 'UNKNOWN'
 
     def on_image(self, msg):
-        if self.net is None:
+        if not self.net.ready:
             self.publish_state('UNKNOWN')
             return
 
@@ -168,7 +132,7 @@ class TrafficLightDetector(object):
 
     def publish_state(self, state):
         out = TrafficLightState()
-        out.model_name = rospy.get_param('~node_name', 'traffic_light')
+        out.model_name = self.model_name
         out.state = state
         self.state_pub.publish(out)
 
@@ -176,14 +140,17 @@ class TrafficLightDetector(object):
         for name, score, box in dets:
             color, _ = parse_class(name)
             x, y, w, h = [int(v) for v in box]
-            cv2.rectangle(frame, (x, y), (x + w, y + h), COLORS[color], 2)
+            c = COLORS.get(color, (255, 255, 255))
+            cv2.rectangle(frame, (x, y), (x + w, y + h), c, 2)
             cv2.putText(frame, '%s %.2f' % (name, score), (x, y - 5),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLORS[color], 2)
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2)
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, 'bgr8'))
-        except Exception:
+        except Exception as err:                       # noqa: BLE001
             # the debug stream must never break the detector
-            pass
+            rospy.logdebug("traffic_light_detector: debug publish skipped: %s",
+                           err)
+
 
 
 def main():

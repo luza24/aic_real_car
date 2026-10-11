@@ -8,6 +8,7 @@
   <arg name="ocr_binary" default="false"/>
   <arg name="ocr_gpu" default="false"/>
   <arg name="ocr_min_chars" default="4"/>
+  <arg name="ocr_wait" default="8.0"/>
 
   <node name="car_detector" pkg="aic26_perception"
         type="car_detector.py" output="screen">
@@ -16,7 +17,7 @@
     <param name="result_topic" value="/perception/result"/>
     <param name="image_topic"  value="/perception/car/image"/>
     <param name="detect_topic" value="/perception/detect"/>
-    <param name="input_size"   value="320"/>
+    <param name="input_size"   value="640"/>
     <param name="conf"         value="0.5"/>
     <param name="nms"          value="0.45"/>
     <rosparam param="plate_roi" subst_value="true">$(arg plate_roi)</rosparam>
@@ -24,6 +25,7 @@
     <param name="ocr_binary"   value="$(arg ocr_binary)"/>
     <param name="ocr_gpu"      value="$(arg ocr_gpu)"/>
     <param name="ocr_min_chars" value="$(arg ocr_min_chars)"/>
+    <param name="ocr_wait"     value="$(arg ocr_wait)"/>
   </node>
 
 </launch>

@@ -1,7 +1,10 @@
 <launch>
 
   <arg name="model_path"
-       default="$(find aic26_perception)/models/traffic_light_int8.onnx"/>
+       default="$(find aic26_perception)/models/traffic_int8.onnx"/>
+  <!-- model_name reported to the mission controller; must match the traffic
+       light model in the world file (traffic_light_1 / traffic_light_2) -->
+  <arg name="light_name" default="traffic_light"/>
 
   <node name="traffic_light_detector" pkg="aic26_perception"
         type="traffic_light_detector.py" output="screen">
@@ -9,10 +12,10 @@
     <param name="image_in"   value="/camera/image_raw"/>
     <param name="state_topic" value="/perception/traffic_light"/>
     <param name="image_topic" value="/perception/traffic_light/image"/>
-    <param name="input_size" value="320"/>
+    <param name="input_size" value="640"/>
     <param name="conf"       value="0.5"/>
     <param name="nms"        value="0.45"/>
-    <param name="node_name"  value="traffic_light"/>
+    <param name="node_name"  value="$(arg light_name)"/>
   </node>
 
 </launch>

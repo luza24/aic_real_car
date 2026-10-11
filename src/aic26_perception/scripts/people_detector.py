@@ -26,13 +26,17 @@ community.
 
 import json
 import os
+import sys
 
 import cv2
-import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from std_msgs.msg import String
+
+# the shared YOLO backend/helpers live next to this script
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from perception_common import YoloNet      # noqa: E402
 
 CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9',
            'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'pF1', 'pF2']
@@ -43,27 +47,18 @@ COLOR_COMMUNITY = (0, 255, 0)
 COLOR_INTRUDER = (0, 0, 255)
 
 
-def letterbox(img, size):
-    h, w = img.shape[:2]
-    scale = min(size / w, size / h)
-    nw, nh = int(round(w * scale)), int(round(h * scale))
-    resized = cv2.resize(img, (nw, nh))
-    canvas = np.full((size, size, 3), 114, np.uint8)
-    dx, dy = (size - nw) // 2, (size - nh) // 2
-    canvas[dy:dy + nh, dx:dx + nw] = resized
-    return canvas, scale, dx, dy
-
-
 class PeopleDetector(object):
     def __init__(self):
         self.model_path = rospy.get_param(
             '~model_path', self.default_model_path())
-        self.size = rospy.get_param('~input_size', 320)
+        self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
 
         self.bridge = CvBridge()
-        self.net = self.load_model()
+        self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
+                           nms=self.nms, num_classes=len(CLASSES),
+                           log=self._log)
 
         self.seen = set()     # classes already counted in this detection
 
@@ -80,59 +75,20 @@ class PeopleDetector(object):
                          String, self.on_detect)
         rospy.loginfo("people_detector ready (%d classes)", len(CLASSES))
 
+    @staticmethod
+    def _log(level, msg, *args):
+        getattr(rospy, 'log' + level, rospy.loginfo)(msg, *args)
+
     def default_model_path(self):
         pkg = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(pkg, 'models', 'people_int8.onnx')
 
-    def load_model(self):
-        if not os.path.isfile(self.model_path):
-            rospy.logwarn("model not found: %s, no people will be detected",
-                          self.model_path)
-            return None
-        try:
-            net = cv2.dnn.readNetFromONNX(self.model_path)
-        except cv2.error as err:
-            rospy.logwarn("failed to load model: %s", err)
-            return None
-        return net
-
     def infer(self, frame):
         # returns a list of (class_name, score, box)
-        img, scale, dx, dy = letterbox(frame, self.size)
-        blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (self.size, self.size),
-                                     swapRB=True, crop=False)
-        self.net.setInput(blob)
-        out = self.net.forward()[0]
-
-        # accept both [4+nc, N] and [N, 4+nc] export layouts
-        if out.shape[0] < out.shape[1]:
-            preds = out.T
-        else:
-            preds = out
-
-        boxes, scores, ids = [], [], []
-        for det in preds:
-            cls_scores = det[4:]
-            obj = float(np.max(cls_scores))
-            if obj < self.conf:
-                continue
-            cx, cy, bw, bh = [float(v) for v in det[:4]]
-            x = (cx - bw / 2 - dx) / scale
-            y = (cy - bh / 2 - dy) / scale
-            boxes.append([x, y, bw / scale, bh / scale])
-            scores.append(obj)
-            ids.append(int(np.argmax(cls_scores)))
-
-        if not boxes:
-            return []
-
-        keep = np.array(cv2.dnn.NMSBoxes(boxes, scores, self.conf, self.nms))
-        if keep.size == 0:
-            return []
         dets = []
-        for i in keep.flatten():
-            if ids[i] < len(CLASSES):
-                dets.append((CLASSES[ids[i]], scores[i], boxes[i]))
+        for cls_id, score, box in self.net.infer(frame):
+            if 0 <= cls_id < len(CLASSES):
+                dets.append((CLASSES[cls_id], score, box))
         return dets
 
     def on_detect(self, msg):
@@ -141,7 +97,7 @@ class PeopleDetector(object):
             rospy.loginfo("people count restarted")
 
     def on_image(self, msg):
-        if self.net is None:
+        if not self.net.ready:
             return
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
@@ -157,7 +113,12 @@ class PeopleDetector(object):
     def publish_result(self, dets):
         intruders = sorted(c for c in self.seen if c in INTRUDERS)
         community = len(self.seen) - len(intruders)
-        boxes = {name: [round(float(v), 1) for v in box] for name, _, box in dets}
+        # one entry per detection, keyed by class name (a class may be seen
+        # several times in one frame, so the value is a list of boxes)
+        boxes = {}
+        for name, _, box in dets:
+            boxes.setdefault(name, []).append(
+                [round(float(v), 1) for v in box])
 
         out = String()
         out.data = json.dumps({
@@ -179,9 +140,10 @@ class PeopleDetector(object):
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         try:
             self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, 'bgr8'))
-        except Exception:
+        except Exception as err:                       # noqa: BLE001
             # the debug stream must never break the detector
-            pass
+            rospy.logdebug("people_detector: debug publish skipped: %s", err)
+
 
 
 def main():
