@@ -21,12 +21,12 @@ waypoints:
     dwell: 2.0
   - name: "traffic_light_2"
     x: -0.1
-    y: -0.2
+    y: -0.1
     yaw: 4.712388
     dwell: 0.0
   - name: "car_1"
     x: 1.1
-    y: -1.8
+    y: -1.7
     yaw: 0.000000
     dwell: 0.0
   - name: "car_2"
@@ -41,7 +41,7 @@ waypoints:
     dwell: 0.0
   - name: "corner_1"
     x: 1.1
-    y: 1.7
+    y: 1.73
     yaw: 3.141592
     dwell: 0.0
   - name: "corner_2"
