@@ -32,6 +32,41 @@ except ImportError:          # fall back to cv2.dnn only
     ort = None
 
 
+def to_imgmsg(frame, frame_id=''):
+    """Convert a BGR (or gray) numpy frame to a ``sensor_msgs/Image``.
+
+    ``cv_bridge.cv2_to_imgmsg`` cannot be used here: this workspace runs
+    OpenCV 5, whose ``CV_8UC3`` constant (64) no longer matches the value the
+    ROS Noetic C++ bridge reports for ``bgr8`` (16), so the encoding check
+    raises ``KeyError: 16``. Building the message by hand keeps the debug
+    image stream working regardless of the OpenCV / cv_bridge versions.
+    """
+    from sensor_msgs.msg import Image           # local import: ROS-only module
+
+    img = np.ascontiguousarray(frame)
+    if img.ndim == 2:
+        height, width = img.shape
+        channels = 1
+    else:
+        height, width, channels = img.shape
+    if channels == 3:
+        encoding = 'bgr8'
+    elif channels == 1:
+        encoding = 'mono8'
+    else:                                        # BGRA / RGBA
+        encoding = 'bgra8'
+
+    msg = Image()
+    msg.header.frame_id = frame_id
+    msg.height = int(height)
+    msg.width = int(width)
+    msg.encoding = encoding
+    msg.is_bigendian = False
+    msg.step = int(width * channels * img.dtype.itemsize)
+    msg.data = img.tobytes()
+    return msg
+
+
 def letterbox(img, size):
     """Resize ``img`` into a ``size`` x ``size`` canvas, keeping aspect ratio.
 

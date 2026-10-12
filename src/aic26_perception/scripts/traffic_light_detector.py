@@ -37,12 +37,13 @@ import cv2
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
+from std_msgs.msg import String
 
 from aic26_msgs.msg import TrafficLightState
 
 # the shared YOLO backend/helpers live next to this script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from perception_common import YoloNet      # noqa: E402
+from perception_common import YoloNet, to_imgmsg      # noqa: E402
 
 CLASSES = ['red_off', 'red_on',
            'green_off', 'green_on',
@@ -76,6 +77,8 @@ class TrafficLightDetector(object):
         self.model_name = rospy.get_param('~node_name', 'traffic_light')
 
         self.bridge = CvBridge()
+        self.debug_warned = False   # log the first debug-image failure only
+        self.active = False         # only detect while "traffic_light" is asked
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
                            nms=self.nms, num_classes=len(CLASSES),
                            log=self._log)
@@ -89,6 +92,8 @@ class TrafficLightDetector(object):
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
                          Image, self.on_image)
+        rospy.Subscriber(rospy.get_param('~detect_topic', '/perception/detect'),
+                         String, self.on_detect)
         rospy.loginfo("traffic_light_detector ready (classes: %s)",
                       ','.join(CLASSES))
 
@@ -120,9 +125,22 @@ class TrafficLightDetector(object):
             return STATE_MAP[on_colors.pop()]
         return 'UNKNOWN'
 
+    def on_detect(self, msg):
+        # only the node whose target was requested runs; a request for another
+        # target (or "stop") switches this one off again
+        req = msg.data.strip().lower()
+        if req == 'traffic_light':
+            self.active = True
+            rospy.loginfo("traffic light detection restarted")
+        else:
+            self.active = False
+
     def on_image(self, msg):
+        # the light state is only inspected while the mission has a
+        # traffic_light task at a stop line; between stops nothing is published
+        if not self.active:
+            return
         if not self.net.ready:
-            self.publish_state('UNKNOWN')
             return
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
@@ -145,11 +163,15 @@ class TrafficLightDetector(object):
             cv2.putText(frame, '%s %.2f' % (name, score), (x, y - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2)
         try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, 'bgr8'))
+            self.image_pub.publish(to_imgmsg(frame))
+            self.debug_warned = False
         except Exception as err:                       # noqa: BLE001
-            # the debug stream must never break the detector
-            rospy.logdebug("traffic_light_detector: debug publish skipped: %s",
-                           err)
+            # the debug stream must never break the detector, but a persistent
+            # failure (e.g. a broken cv_bridge) has to be visible, not silent
+            if not self.debug_warned:
+                self.debug_warned = True
+                rospy.logwarn("traffic_light_detector: debug publish skipped: %s",
+                              err)
 
 
 

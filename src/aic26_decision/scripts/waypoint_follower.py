@@ -1,45 +1,62 @@
 #!/usr/bin/env python3
+
+"""
+Waypoint follower.
+
+Visits every waypoint in config/waypoints.yaml once, in file order, and stops.
+Useful to check the map / localisation / planner without running a full
+mission.
+
+    (no topics beyond the shared navigation / cmd_vel ones)
+
+The navigation logic comes from mission_common, shared with the other
+aic26_decision nodes.
+"""
+
+import os
+import sys
+
 import rospy
-import actionlib
 import yaml
-from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from tf.transformations import quaternion_from_euler
 
-def load_waypoints(path):
-    with open(path) as f:
-        return yaml.safe_load(f)["waypoints"]
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from mission_common import RobotDriver      # noqa: E402
 
-def make_goal(wp):
-    q = quaternion_from_euler(0.0, 0.0, wp["yaw"])
-    goal = MoveBaseGoal()
-    goal.target_pose.header.frame_id = "map"
-    goal.target_pose.header.stamp = rospy.Time.now()
 
-    goal.target_pose.pose.position.x = wp["x"]
-    goal.target_pose.pose.position.y = wp["y"]
-    goal.target_pose.pose.position.z = 0.0
+class WaypointFollower(RobotDriver):
+    def __init__(self):
+        super(WaypointFollower, self).__init__(light_topic=None)
 
-    goal.target_pose.pose.orientation.x = q[0]
-    goal.target_pose.pose.orientation.y = q[1]
-    goal.target_pose.pose.orientation.z = q[2]
-    goal.target_pose.pose.orientation.w = q[3]
-    return goal
+    def load_waypoints(self, path):
+        with open(path) as f:
+            return yaml.safe_load(f)["waypoints"]
+
+    def run(self):
+        waypoints = self.load_waypoints(rospy.get_param("~waypoints_file"))
+
+        self.wait_ready()
+        rospy.loginfo("waypoint follower started, %d waypoints",
+                      len(waypoints))
+
+        try:
+            for wp in waypoints:
+                if rospy.is_shutdown():
+                    break
+                rospy.loginfo("going to %s", wp["name"])
+                if self.go_to(wp):
+                    rospy.loginfo("reached %s", wp["name"])
+                else:
+                    rospy.logwarn("failed to reach %s", wp["name"])
+        except KeyboardInterrupt:
+            self.stop_motion()
+            rospy.loginfo("interrupted by KeyboardInterrupt")
+        rospy.loginfo("waypoint follower finished")
+
 
 def main():
     rospy.init_node("waypoint_follower")
-    client = actionlib.SimpleActionClient("move_base", MoveBaseAction)
-    if not client.wait_for_server(rospy.Duration(20.0)):
-        rospy.logerr("move_base action server load failed")
-        return
+    WaypointFollower().run()
 
-    waypoints = load_waypoints(rospy.get_param("~waypoints_file"))
-    for wp in waypoints:
-        rospy.loginfo("Going to %s", wp["name"])
-        client.send_goal(make_goal(wp))
-        if client.wait_for_result() and client.get_state() == actionlib.GoalStatus.SUCCEEDED:
-            rospy.loginfo("Reached %s", wp["name"])
-        else:
-            rospy.logwarn("Failed to reach %s", wp["name"])
 
 if __name__ == "__main__":
     main()

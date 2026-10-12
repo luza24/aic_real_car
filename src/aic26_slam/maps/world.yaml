@@ -1,4 +1,4 @@
-image: aic26-1.pgm
+image: world.pgm
 resolution: 0.050000
 origin: [-6.000000, -6.000000, 0.000000]
 negate: 0

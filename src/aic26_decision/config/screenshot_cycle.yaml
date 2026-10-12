@@ -1,4 +1,4 @@
-# Dataset capture route for screenshot_cycle.py
+# Dataset capture route for capture_cycle.py
 #
 # Mirrors the real inspection mission (config/tasks.yaml) waypoint by
 # waypoint so the collected images match the real run: same order, same

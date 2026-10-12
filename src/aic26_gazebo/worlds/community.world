@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <sdf version="1.7">
-  <world name="aic26-1">
+  <world name="community">
     <gravity>0 0 -9.8</gravity>
     <physics name="default_physics" type="ode">
       <max_step_size>0.001</max_step_size>

@@ -1,0 +1,74 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Single entry point. Pick the run mode; each mode file includes the
+       gazebo world and only the extra nodes it needs.
+         real       real inspection mission (perception + mission_controller)
+         demo       showcase loop (faked detection, sky advances 4.5h/pass)
+         capture    loop screenshot capture for the dataset
+         waypoints  traverse every waypoint once (map / localisation check)
+         mapping    gmapping on the simulated laser -->
+
+  <arg name="mode"      default="real"/>
+  <arg name="world"     default="world"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time"  default=""/>
+  <arg name="map_file"  default="$(find aic26_slam)/maps/world.yaml"/>
+  <arg name="use_rviz"  default="true"/>
+  <arg name="show_view" default="true"/>
+
+  <group if="$(eval arg('mode') == 'real')">
+    <include file="$(find aic26_bringup)/launch/mission.launch">
+      <arg name="world"     value="$(arg world)"/>
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="map_file"  value="$(arg map_file)"/>
+      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('mode') == 'demo')">
+    <include file="$(find aic26_bringup)/launch/demo.launch">
+      <arg name="world"     value="$(arg world)"/>
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="map_file"  value="$(arg map_file)"/>
+      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('mode') == 'capture')">
+    <include file="$(find aic26_bringup)/launch/capture.launch">
+      <arg name="world"     value="$(arg world)"/>
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="map_file"  value="$(arg map_file)"/>
+      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('mode') == 'waypoints')">
+    <include file="$(find aic26_bringup)/launch/waypoints.launch">
+      <arg name="world"     value="$(arg world)"/>
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="map_file"  value="$(arg map_file)"/>
+      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('mode') == 'mapping')">
+    <include file="$(find aic26_bringup)/launch/mapping.launch">
+      <arg name="world"     value="$(arg world)"/>
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+</launch>
+

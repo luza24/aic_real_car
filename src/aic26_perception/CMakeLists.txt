@@ -27,3 +27,7 @@ catkin_install_python(PROGRAMS
 install(DIRECTORY models launch
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
+
+install(FILES results/README.md
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/results
+)

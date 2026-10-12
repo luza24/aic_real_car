@@ -2,7 +2,7 @@
 
   <arg name="day_night" default="day"/>
   <arg name="sky_time"  default=""/>
-
+  <arg name="show_view" default="true"/>
   <arg name="day_night_gui_delay"  default="12.0"/>
 
   <env name="GAZEBO_PLUGIN_PATH"
@@ -11,7 +11,7 @@
        value="$(find aic26_gazebo)/models:$(optenv GAZEBO_MODEL_PATH)"/>
 
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="world_name"   value="$(find aic26_gazebo)/worlds/aic26-1.world"/>
+    <arg name="world_name"   value="$(find aic26_gazebo)/worlds/community.world"/>
     <arg name="use_sim_time" value="true"/>
     <arg name="paused"       value="false"/>
     <arg name="gui"          value="true"/>
@@ -52,6 +52,11 @@
   <node pkg="aic26_gazebo" type="day_night.py" name="day_night_gui" output="screen"
         launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
     <param name="gui" value="true"/>
+  </node>
+    
+  <node if="$(arg show_view)" pkg="image_view" type="image_view"
+        name="image_view" output="screen">
+    <remap from="image" to="/camera/image_raw"/>
   </node>
 
 </launch>

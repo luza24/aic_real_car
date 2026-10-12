@@ -8,7 +8,8 @@ the current view. Every person model has its own class, so each class is
 counted at most once (no double counting within one detection).
 
     sub : /camera/image_raw              (sensor_msgs/Image)
-    sub : /perception/detect             (std_msgs/String, "people" starts a count)
+    sub : /perception/detect             (std_msgs/String, "people" starts a count,
+                                          anything else stops it)
     pub : /perception/result             (std_msgs/String, json)
     pub : /perception/people/image       (sensor_msgs/Image, debug)
 
@@ -36,7 +37,7 @@ from std_msgs.msg import String
 
 # the shared YOLO backend/helpers live next to this script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from perception_common import YoloNet      # noqa: E402
+from perception_common import YoloNet, to_imgmsg      # noqa: E402
 
 CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9',
            'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'pF1', 'pF2']
@@ -61,6 +62,8 @@ class PeopleDetector(object):
                            log=self._log)
 
         self.seen = set()     # classes already counted in this detection
+        self.active = False   # only detect while "people" is requested
+        self.debug_warned = False   # log the first debug-image failure only
 
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
@@ -92,11 +95,19 @@ class PeopleDetector(object):
         return dets
 
     def on_detect(self, msg):
-        if msg.data.strip().lower() == 'people':
+        # only the node whose target was requested runs; a request for another
+        # target (or "stop") switches this one off again
+        req = msg.data.strip().lower()
+        if req == 'people':
+            self.active = True
             self.seen = set()
             rospy.loginfo("people count restarted")
+        else:
+            self.active = False
 
     def on_image(self, msg):
+        if not self.active:
+            return
         if not self.net.ready:
             return
 
@@ -139,10 +150,14 @@ class PeopleDetector(object):
             cv2.putText(frame, '%s %.2f' % (name, score), (x, y - 5),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
         try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, 'bgr8'))
+            self.image_pub.publish(to_imgmsg(frame))
+            self.debug_warned = False
         except Exception as err:                       # noqa: BLE001
-            # the debug stream must never break the detector
-            rospy.logdebug("people_detector: debug publish skipped: %s", err)
+            # the debug stream must never break the detector, but a persistent
+            # failure (e.g. a broken cv_bridge) has to be visible, not silent
+            if not self.debug_warned:
+                self.debug_warned = True
+                rospy.logwarn("people_detector: debug publish skipped: %s", err)
 
 
 

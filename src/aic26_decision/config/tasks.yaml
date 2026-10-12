@@ -73,12 +73,6 @@ tasks:
     target: "people"
     message: "Zone C people inspection finished."
 
-  - name: "light_2"
-    type: traffic_light
-    waypoint: "traffic_light_2"
-    light: "traffic_light_2"
-    wait: 40
-
   - name: "people_d"
     type: inspect
     waypoint: "traffic_light_2"
@@ -86,6 +80,12 @@ tasks:
     dwell: 2.0
     target: "people"
     message: "Zone D people inspection finished."
+
+  - name: "light_2"
+    type: traffic_light
+    waypoint: "traffic_light_2"
+    light: "traffic_light_2"
+    wait: 40
 
   - name: "car_1"
     type: inspect

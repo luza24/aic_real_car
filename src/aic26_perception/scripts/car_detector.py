@@ -11,7 +11,8 @@ with easyocr (Chinese simplified + English, so the province character comes
 out as real UTF-8 text).
 
     sub : /camera/image_raw              (sensor_msgs/Image)
-    sub : /perception/detect             (std_msgs/String, "car" starts a read)
+    sub : /perception/detect             (std_msgs/String, "car" starts a read,
+                                          anything else stops it)
     pub : /perception/result             (std_msgs/String, json)
     pub : /perception/car/image          (sensor_msgs/Image, debug)
 
@@ -38,7 +39,7 @@ from std_msgs.msg import String
 
 # the shared YOLO backend/helpers live next to this script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from perception_common import YoloNet, crop_roi      # noqa: E402
+from perception_common import YoloNet, crop_roi, to_imgmsg      # noqa: E402
 
 try:
     import easyocr
@@ -96,6 +97,7 @@ class CarDetector(object):
         self.ocr_wait = float(rospy.get_param('~ocr_wait', 8.0))
 
         self.bridge = CvBridge()
+        self.debug_warned = False   # log the first debug-image failure only
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
                            nms=self.nms, num_classes=len(CLASSES),
                            log=self._log)
@@ -108,6 +110,7 @@ class CarDetector(object):
         self.plate = ''          # last recognised plate
         self.plate_conf = 0.0
         self.plate_done = True   # nothing pending until a "car" detect arrives
+        self.active = False      # only detect while "car" is requested
 
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
@@ -219,14 +222,22 @@ class CarDetector(object):
 
     # ----------------------------------------------------------------- io
     def on_detect(self, msg):
-        if msg.data.strip().lower() == 'car':
+        # only the node whose target was requested runs; a request for another
+        # target (or "stop") switches this one off again
+        req = msg.data.strip().lower()
+        if req == 'car':
+            self.active = True
             self.seen = set()
             self.plate = ''
             self.plate_conf = 0.0
             self.plate_done = True
             rospy.loginfo("car read restarted")
+        else:
+            self.active = False
 
     def on_image(self, msg):
+        if not self.active:
+            return
         if not self.net.ready:
             return
 
@@ -289,10 +300,14 @@ class CarDetector(object):
                 cv2.putText(frame, '%.2f' % self.plate_conf, (x, y + h + 16),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_PLATE, 1)
         try:
-            self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, 'bgr8'))
+            self.image_pub.publish(to_imgmsg(frame))
+            self.debug_warned = False
         except Exception as err:                       # noqa: BLE001
-            # the debug stream must never break the detector
-            rospy.logdebug("car_detector: debug publish skipped: %s", err)
+            # the debug stream must never break the detector, but a persistent
+            # failure (e.g. a broken cv_bridge) has to be visible, not silent
+            if not self.debug_warned:
+                self.debug_warned = True
+                rospy.logwarn("car_detector: debug publish skipped: %s", err)
 
 
 def main():

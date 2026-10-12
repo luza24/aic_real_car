@@ -72,4 +72,3 @@ car_detector.py needs easyocr at runtime (CPU is fine):
     pip install easyocr
 
 The node starts without it and simply reports an empty plate.
-

@@ -1,6 +1,11 @@
 <launch>
 
-  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen">
+  <!-- start-up delay (s) applied to the mapping / teleop nodes, so the caller
+       can wait for the simulation to come up first. 0 disables the wait. -->
+  <arg name="node_delay" default="0.0"/>
+
+  <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
 
     <param name="base_frame"   value="base_footprint"/>
     <param name="odom_frame"   value="odom"/>
@@ -26,15 +31,10 @@
 
   <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" 
         name="teleop" output="screen"
-        launch-prefix="xterm -e">
+        launch-prefix="bash -c 'sleep $(arg node_delay); xterm -e $0 $@'">
     <param name="speed" value="0.1"/>
     <param name="turn"  value="0.5"/>
   </node>
 
-  <node pkg="image_view" type="image_view"
-        name="image_view" output="screen">
-    <remap from="image" to="/camera/image_raw"/>
-    <param name="filename" value="$(find aic26_gazebo)/../../.datasets/screenshots/snap_"/>
-  </node>
   
 </launch>

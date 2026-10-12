@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Only the showcase node. The world and navigation stack are launched by
+       the aic26_bringup demo launch file; this file can also be included on
+       its own next to an already running stack. -->
+
+  <arg name="route_file"     default="$(find aic26_decision)/config/screenshot_cycle.yaml"/>
+  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+  <arg name="sky_step"       default="4.5"/>
+  <!-- start-up delay (s) applied to the node; 0 disables the wait -->
+  <arg name="node_delay"     default="0.0"/>
+
+  <node pkg="aic26_decision" type="demo_cycle.py" name="demo_cycle"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="route_file"     value="$(arg route_file)"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+    <param name="speech_topic"   value="/speech"/>
+    <param name="result_topic"   value="/perception/result"/>
+    <param name="detect_topic"   value="/perception/detect"/>
+    <param name="light_topic"    value="/traffic_light/state"/>
+    <!-- hours added to the sky box time after every pass -->
+    <param name="sky_step"       value="$(arg sky_step)"/>
+
+    <param name="cmd_topic"       value="/cmd_vel"/>
+    <param name="turn_tf_timeout" value="3.0"/>
+    <param name="turn_settle"     value="0.5"/>
+    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_tolerance"  value="0.05"/>
+    <param name="turn_timeout"    value="20.0"/>
+    <!-- nodes wait for move_base / tf instead of depending on launch order -->
+    <param name="ready_timeout"      value="60.0"/>
+    <param name="nav_server_timeout" value="120.0"/>
+    <param name="nav_timeout"        value="120.0"/>
+  </node>
+
+</launch>

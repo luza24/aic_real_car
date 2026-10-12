@@ -1,15 +1,22 @@
 <launch>
 
-  <arg name="map_file" default="$(find aic26_slam)/maps/aic26-1.yaml"/>
+  <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
   <arg name="use_rviz" default="true"/>
+  <!-- start-up delay (s) applied to every node in this file, so the caller can
+       wait for the simulation to come up before the navigation stack starts.
+       0 disables the wait. -->
+  <arg name="node_delay" default="0.0"/>
 
-  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"/>
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
 
-  <node name="amcl" pkg="amcl" type="amcl" output="screen">
+  <node name="amcl" pkg="amcl" type="amcl" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
     <rosparam file="$(find aic26_navigation)/config/amcl_params.yaml" command="load"/>
   </node>
 
-  <node name="move_base" pkg="move_base" type="move_base" output="screen">
+  <node name="move_base" pkg="move_base" type="move_base" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
     <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap"/>
     <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap"/>
     <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml" command="load"/>
@@ -29,6 +36,8 @@
     <param name="recovery_behavior_enabled" value="true"/>
   </node>
 
-  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(find aic26_navigation)/rviz/navigation.rviz"/>
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find aic26_navigation)/rviz/navigation.rviz"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
 
 </launch>

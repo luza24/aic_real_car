@@ -2,9 +2,16 @@
 
   <arg name="tasks_file"     default="$(find aic26_decision)/config/tasks.yaml"/>
   <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+  <!-- show the detection result GUI and write the results to disk -->
+  <arg name="gui"            default="true"/>
+  <arg name="results_dir"    default="$(find aic26_perception)/results"/>
+  <!-- start-up delay (s) applied to the node, so the caller can wait for the
+       simulation / navigation stack to come up first. 0 disables the wait. -->
+  <arg name="node_delay"     default="0.0"/>
 
   <node name="mission_controller" pkg="aic26_decision"
-        type="mission_controller.py" output="screen">
+        type="mission_controller.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
     <param name="tasks_file"     value="$(arg tasks_file)"/>
     <param name="waypoints_file" value="$(arg waypoints_file)"/>
 
@@ -13,8 +20,16 @@
     <param name="result_topic"  value="/perception/result"/>
     <param name="detect_topic"  value="/perception/detect"/>
     <param name="speech_topic"  value="/speech"/>
+    <param name="gui"           value="$(arg gui)"/>
+    <param name="results_dir"   value="$(arg results_dir)"/>
     <param name="detect_wait"   value="1.0"/>
     <param name="no_data_wait"  value="10.0"/>
+    <!-- per-goal move_base timeout; 0 disables the bound (wait forever) -->
+    <param name="nav_timeout"   value="0.0"/>
+    <!-- move_base action server start-up wait; 0 waits forever -->
+    <param name="nav_server_timeout" value="0.0"/>
+    <!-- map -> base_footprint tf wait at start up -->
+    <param name="ready_timeout" value="60.0"/>
 
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>

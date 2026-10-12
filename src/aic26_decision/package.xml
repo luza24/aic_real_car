@@ -11,10 +11,15 @@
   <buildtool_depend>catkin</buildtool_depend>
   <depend>actionlib</depend>
   <depend>aic26_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>move_base_msgs</depend>
   <depend>rospy</depend>
-  <depend>aic26_gazebo</depend>
-  <depend>aic26_navigation</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>tf</depend>
+  <exec_depend>aic26_gazebo</exec_depend>
+  <exec_depend>aic26_navigation</exec_depend>
+  <exec_depend>aic26_perception</exec_depend>
 
   <export>
 

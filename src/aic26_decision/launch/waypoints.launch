@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Only the waypoint follower node. The world and navigation stack are
+       launched by the aic26_bringup waypoints launch file. -->
+
+  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+  <!-- start-up delay (s) applied to the node; 0 disables the wait -->
+  <arg name="node_delay"     default="0.0"/>
+
+  <node pkg="aic26_decision" type="waypoint_follower.py" name="waypoint_follower"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+
+    <param name="cmd_topic"       value="/cmd_vel"/>
+    <param name="turn_tf_timeout" value="3.0"/>
+    <param name="turn_settle"     value="0.5"/>
+    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_tolerance"  value="0.05"/>
+    <param name="turn_timeout"    value="20.0"/>
+    <!-- nodes wait for move_base / tf instead of depending on launch order -->
+    <param name="ready_timeout"      value="60.0"/>
+    <param name="nav_server_timeout" value="120.0"/>
+    <param name="nav_timeout"        value="120.0"/>
+  </node>
+
+</launch>

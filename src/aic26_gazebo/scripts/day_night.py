@@ -83,21 +83,29 @@ def run_gui():
         readout.set('%02d:%02d  (%s)' % (int(h), int((h % 1) * 60), state))
 
     slider = ttk.Scale(root, from_=0.0, to=24.0, variable=hours,
-                       orient='horizontal', command=refresh, length=360)
+                       orient='horizontal', command=refresh, length=720)
     slider.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
 
-    ttk.Label(root, textvariable=readout).grid(
-        row=1, column=0, columnspan=2, pady=(0, 8))
+    # fonts are doubled so the whole panel is about twice its original size
+    # (the slider length above is doubled as well)
+    big = ('TkDefaultFont', 18)
+    readout_label = ttk.Label(root, textvariable=readout)
+    readout_label.configure(font=big)
+    readout_label.grid(row=1, column=0, columnspan=2, pady=(0, 8))
 
-    ttk.Label(root, text='sunrise').grid(row=2, column=0, sticky='e', padx=6)
-    ttk.Spinbox(root, from_=0.0, to=24.0, increment=0.5,
-                textvariable=sunrise, width=8, command=refresh).grid(
-        row=2, column=1, sticky='w', pady=2)
+    ttk.Label(root, text='sunrise', font=big).grid(
+        row=2, column=0, sticky='e', padx=6)
+    sun_box = ttk.Spinbox(root, from_=0.0, to=24.0, increment=0.5,
+                          textvariable=sunrise, width=8, command=refresh)
+    sun_box.configure(font=big)
+    sun_box.grid(row=2, column=1, sticky='w', pady=2)
 
-    ttk.Label(root, text='sunset').grid(row=3, column=0, sticky='e', padx=6)
-    ttk.Spinbox(root, from_=0.0, to=24.0, increment=0.5,
-                textvariable=sunset, width=8, command=refresh).grid(
-        row=3, column=1, sticky='w', pady=2)
+    ttk.Label(root, text='sunset', font=big).grid(
+        row=3, column=0, sticky='e', padx=6)
+    set_box = ttk.Spinbox(root, from_=0.0, to=24.0, increment=0.5,
+                          textvariable=sunset, width=8, command=refresh)
+    set_box.configure(font=big)
+    set_box.grid(row=3, column=1, sticky='w', pady=2)
 
     def tick():
         # keep in sync if another node changes the time, then re-arm

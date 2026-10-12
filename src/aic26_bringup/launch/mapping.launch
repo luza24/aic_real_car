@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Mapping: simulation + gmapping on the simulated laser. Drive the robot
+       with teleop (spawned by the gmapping launch) and map the world. -->
+
+  <arg name="world"     default="world"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time"  default=""/>
+  <arg name="show_view"   default="true"/>
+  <!-- start-up delays: let the simulation come up before the mapping stack, and
+       the mapping stack before the task nodes -->
+  <arg name="nav_delay"   default="8.0"/>
+  <arg name="task_delay"  default="10.0"/>
+
+  <include file="$(find aic26_gazebo)/launch/$(arg world).launch">
+    <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time"  value="$(arg sky_time)"/>
+    <arg name="show_view" value="$(arg show_view)"/>
+  </include>
+
+  <include file="$(find aic26_slam)/launch/gmapping.launch">
+    <arg name="node_delay" value="$(arg nav_delay)"/>
+  </include>
+
+</launch>

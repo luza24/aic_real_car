@@ -2,9 +2,12 @@
 
   <arg name="model_path"
        default="$(find aic26_perception)/models/people_int8.onnx"/>
+  <!-- start-up delay (s) applied to the node; 0 disables the wait -->
+  <arg name="node_delay" default="0.0"/>
 
   <node name="people_detector" pkg="aic26_perception"
-        type="people_detector.py" output="screen">
+        type="people_detector.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
     <param name="model_path"   value="$(arg model_path)"/>
     <param name="image_in"     value="/camera/image_raw"/>
     <param name="result_topic" value="/perception/result"/>
