@@ -50,5 +50,6 @@ add_dependencies(light_switch_visual_plugin
 catkin_install_python(PROGRAMS
   scripts/traffic_controller.py
   scripts/day_night.py
+  scripts/camera_view.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

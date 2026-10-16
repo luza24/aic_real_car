@@ -12,7 +12,7 @@ Everything runs in Gazebo with a saved 2D map for localization.
 
 ```bash
   source /opt/ros/noetic/setup.bash
-  catkin_make 
+  catkin_make
   source devel/setup.bash
 ```
 
@@ -21,7 +21,7 @@ Everything runs in Gazebo with a saved 2D map for localization.
 | Package | Role |
 | --- | --- |
 | aic26_description | robot URDF/xacro (base, laser, camera, head, lights) |
-| aic26_gazebo | world, models, traffic light controller + day/night sky scripts and Gazebo visual plugins |
+| aic26_gazebo | world, models, traffic light controller, day/night sky + camera viewer scripts and Gazebo visual plugins |
 | aic26_msgs | custom messages (TrafficLightCommand, TrafficLightState) |
 | aic26_slam | gmapping launch and the saved map |
 | aic26_navigation | map_server, amcl and move_base (global_planner + teb) |
@@ -63,7 +63,7 @@ includes only the nodes that mode needs:
 - `sky_time`    : explicit time of day in hours, overrides `day_night` (default empty)
 - `map_file`    : map yaml for localization (default `aic26_slam/maps/world.yaml`)
 - `use_rviz`    : start rviz (default `true`)
-- `show_view`   : show the Gazebo camera viewer (default `true`)
+- `show_view`   : show the camera viewer `camera_view.py` (default `true`)
 - `nav_delay`   : seconds to wait before the navigation stack starts (default `8.0`)
 - `task_delay`  : seconds to wait before the task nodes start (default `10.0`)
 
@@ -71,6 +71,23 @@ The two delays let the simulation come up before navigation, and navigation
 before the task nodes. They are applied as a per-node start-up wait
 (`launch-prefix="bash -c 'sleep <delay>; $0 $@'"`); set either to `0` to
 disable the wait.
+
+***GUI over SSH (X11 forwarding):***
+
+The Tk panels (`day_night.py`, the `mission_controller` result viewer) and the
+camera viewer are laid out in pixels, so they have the same size on a local
+screen and over `ssh -X`. `AIC26_GUI_SCALE` (or `~gui_scale`) scales them, for
+example on a HiDPI client that stretches the forwarded X screen:
+
+```bash
+  AIC26_GUI_SCALE=1.5 roslaunch aic26_bringup bringup.launch
+```
+
+The camera viewer is `aic26_gazebo/scripts/camera_view.py` (`view_width` /
+`view_height` arguments of `world.launch`, default 640x360), not the stock
+`image_view` node: image_view creates its window at OpenCV's 320x240 default
+and resizes it only after the window is mapped, which an X11 forwarded display
+ignores.
 
 ***Run the steps separately:***
 
@@ -90,7 +107,7 @@ disable the wait.
   # the other decision nodes, each on top of a running nav stack
   roslaunch aic26_decision waypoints.launch        # visit every waypoint once
   roslaunch aic26_decision demo.launch             # showcase loop
-  roslaunch aic26_decision capture.launch # dataset capture loop
+  roslaunch aic26_decision capture.launch          # dataset capture loop
 ```
 
 ***Mission configuration:***

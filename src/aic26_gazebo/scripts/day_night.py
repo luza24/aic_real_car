@@ -17,8 +17,13 @@ GUI (drag the slider to move the sky live, sunrise/sunset are editable):
 
     rosrun aic26_gazebo day_night.py _gui:=true
 
+The panel is sized in pixels, so it keeps its size on every display; scale it
+with AIC26_GUI_SCALE / _gui_scale (e.g. 1.5 for a HiDPI X11 client).
+
 The time can also be advanced by other nodes through publish_time().
 """
+
+import os
 
 import rospy
 
@@ -29,6 +34,25 @@ SUNRISE_PARAM = '/sky_sunrise'
 SUNSET_PARAM = '/sky_sunset'
 DEFAULT_SUNRISE = 6.0
 DEFAULT_SUNSET = 20.0
+
+# panel sizes in pixels (see gui_scale)
+GUI_SCALE_ENV = 'AIC26_GUI_SCALE'
+FONT_PX = 12
+SLIDER_PX = 360
+
+
+def gui_scale(default=1.0):
+    """Size multiplier for the panel: AIC26_GUI_SCALE, else ~gui_scale."""
+    raw = os.environ.get(GUI_SCALE_ENV)
+    if raw is None:
+        raw = rospy.get_param('~gui_scale', default)
+    try:
+        scale = float(raw)
+    except (TypeError, ValueError):
+        rospy.logwarn('%s=%r is not a number, using %.2f',
+                      GUI_SCALE_ENV, raw, default)
+        return default
+    return min(max(scale, 0.25), 4.0)
 
 
 def wrap_hours(hours):
@@ -62,8 +86,16 @@ def run_gui():
     from tkinter import ttk
     import sys
 
+    scale = gui_scale()
+
+    def px(value):
+        """Pixel size for this display (see gui_scale)."""
+        return int(round(value * scale))
+
     root = tk.Tk()
     root.title('day / night')
+    # no window manager places the window on an X11 forwarded display
+    root.geometry('+%d+%d' % (px(40), px(40)))
 
     hours = tk.DoubleVar(value=rospy.get_param('/sky_time', 10.0))
     sunrise = tk.DoubleVar(
@@ -83,12 +115,12 @@ def run_gui():
         readout.set('%02d:%02d  (%s)' % (int(h), int((h % 1) * 60), state))
 
     slider = ttk.Scale(root, from_=0.0, to=24.0, variable=hours,
-                       orient='horizontal', command=refresh, length=720)
+                       orient='horizontal', command=refresh,
+                       length=px(SLIDER_PX))
     slider.grid(row=0, column=0, columnspan=2, padx=10, pady=10)
 
-    # fonts are doubled so the whole panel is about twice its original size
-    # (the slider length above is doubled as well)
-    big = ('TkDefaultFont', 18)
+    # negative font size = pixels in Tk, not points
+    big = ('TkDefaultFont', -px(FONT_PX))
     readout_label = ttk.Label(root, textvariable=readout)
     readout_label.configure(font=big)
     readout_label.grid(row=1, column=0, columnspan=2, pady=(0, 8))

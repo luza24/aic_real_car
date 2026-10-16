@@ -26,7 +26,8 @@ Task types (config/tasks.yaml):
 With ``~gui`` set, a small Tkinter panel is started as well: it shows the
 latest annotated detection frame (boxes drawn) and a text summary, and writes
 the current results to ``aic26_perception/results`` (overwriting them). The
-panel closes the node when its window is closed.
+panel closes the node when its window is closed. The panel is sized in pixels
+and scaled by AIC26_GUI_SCALE / ~gui_scale.
 """
 
 import json
@@ -49,6 +50,27 @@ try:
 except ImportError:
     TrafficLightState = None
     HAVE_LIGHT_MSG = False
+
+# Panel sizes in pixels (the same helper as day_night.py in aic26_gazebo)
+GUI_SCALE_ENV = 'AIC26_GUI_SCALE'
+PANEL_W, PANEL_H = 640, 360           # image panel, 16:9 like the camera
+TEXT_PX, TEXT_COLS, TEXT_ROWS = 13, 40, 18
+BUTTON_PX, BUTTON_COLS = 13, 12
+PLACEHOLDER_PX = 16
+
+
+def gui_scale(default=1.0):
+    """Size multiplier for the panel: AIC26_GUI_SCALE, else ~gui_scale."""
+    raw = os.environ.get(GUI_SCALE_ENV)
+    if raw is None:
+        raw = rospy.get_param('~gui_scale', default)
+    try:
+        scale = float(raw)
+    except (TypeError, ValueError):
+        rospy.logwarn('%s=%r is not a number, using %.2f',
+                      GUI_SCALE_ENV, raw, default)
+        return default
+    return min(max(scale, 0.25), 4.0)
 
 
 class MissionController(RobotDriver):
@@ -198,7 +220,6 @@ class MissionController(RobotDriver):
                 self.results.pop(target, None)
                 self.trigger_detect(target)
             self.speak(self.build_message(task))
-            # stop the detector again so it does not run between stops
             self.stop_detect()
 
         # face the waypoint heading again so the next go_to starts from the
@@ -369,17 +390,26 @@ class ResultViewer(object):
 
         root.title('aic26 detection results')
 
+        scale = gui_scale()
+
+        def px(value):
+            """Pixel size for this display (see gui_scale)."""
+            return int(round(value * scale))
+
+        # no window manager places the window on an X11 forwarded display
+        root.geometry('+%d+%d' % (px(60), px(60)))
+
         # image panel sized in pixels: a Canvas honours width/height as pixels,
         # unlike a Label (which counts characters/lines and would blow up)
-        panel_w, panel_h = 960, 720
+        panel_w, panel_h = px(PANEL_W), px(PANEL_H)
         canvas = tk.Canvas(root, width=panel_w, height=panel_h,
                            bg='#202020', highlightthickness=1,
                            highlightbackground='#555555')
         canvas.grid(row=0, column=0, rowspan=3, padx=6, pady=6, sticky='n')
 
-        # fonts are doubled along with the pixel sizes so the panel and the
-        # summary text are scaled together (see the panel_w/panel_h above)
-        text = tk.Text(root, width=40, height=18, font=('TkFixedFont', 20))
+        # negative font size = pixels in Tk, not points
+        text = tk.Text(root, width=TEXT_COLS, height=TEXT_ROWS,
+                       font=('TkFixedFont', -px(TEXT_PX)))
         text.grid(row=0, column=1, padx=6, pady=6, sticky='n')
 
         names = list(self.IMAGE_TOPICS)
@@ -388,12 +418,13 @@ class ResultViewer(object):
         shown = tk.StringVar(value=names[0])
         for i, name in enumerate(names):
             tk.Radiobutton(buttons, text=name, value=name, variable=shown,
-                           indicatoron=False, width=12,
-                           font=('TkDefaultFont', 16)).grid(row=0, column=i)
+                           indicatoron=False, width=BUTTON_COLS,
+                           font=('TkDefaultFont', -px(BUTTON_PX))).grid(
+                row=0, column=i)
 
         status = tk.StringVar(value='waiting for results ...')
         tk.Label(root, textvariable=status, anchor='w',
-                 font=('TkDefaultFont', 16)).grid(
+                 font=('TkDefaultFont', -px(BUTTON_PX))).grid(
             row=2, column=1, sticky='w', padx=6, pady=(0, 6))
         photo_holder = {'photo': None}
 
@@ -418,7 +449,7 @@ class ResultViewer(object):
                 canvas.delete('all')
                 canvas.create_text(panel_w // 2, panel_h // 2, fill='#bbbbbb',
                                    text='no image yet (%s)' % target,
-                                   font=('TkDefaultFont', 24))
+                                   font=('TkDefaultFont', -px(PLACEHOLDER_PX)))
 
             text.configure(state='normal')
             text.delete('1.0', 'end')
