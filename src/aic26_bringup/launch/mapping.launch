@@ -1,22 +1,32 @@
 <?xml version="1.0"?>
 <launch>
 
-  <!-- Mapping: simulation + gmapping on the simulated laser. Drive the robot
-       with teleop (spawned by the gmapping launch) and map the world. -->
+  <!-- Mapping: backend + gmapping. Drive the robot with the teleop spawned by
+       the gmapping launch and map the environment. -->
 
-  <arg name="world"     default="world"/>
+  <arg name="backend" default="sim"/>
+  <arg name="sim" default="sim"/>
   <arg name="day_night" default="day"/>
-  <arg name="sky_time"  default=""/>
+  <arg name="sky_time" default=""/>
   <arg name="show_view" default="true"/>
-  <!-- start-up delays: let the simulation come up before the mapping stack, and
-       the mapping stack before the task nodes -->
-  <arg name="nav_delay"   default="8.0"/>
-  <arg name="task_delay"  default="10.0"/>
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="nav_delay" default="8.0"/>
 
-  <include file="$(find aic26_gazebo)/launch/$(arg world).launch">
+  <include file="$(find aic26_bringup)/launch/backend.launch">
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="sim" value="$(arg sim)"/>
     <arg name="day_night" value="$(arg day_night)"/>
-    <arg name="sky_time"  value="$(arg sky_time)"/>
+    <arg name="sky_time" value="$(arg sky_time)"/>
     <arg name="show_view" value="$(arg show_view)"/>
+    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+    <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="imu_port" value="$(arg imu_port)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="camera_device" value="$(arg camera_device)"/>
   </include>
 
   <include file="$(find aic26_slam)/launch/gmapping.launch">

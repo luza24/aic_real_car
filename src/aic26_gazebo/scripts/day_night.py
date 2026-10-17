@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Sets the simulated sky box time and the matching light conditions.
 
 The plugin reads /sky_time every frame and republishes it on the Gazebo sky

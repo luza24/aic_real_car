@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="port" default="/dev/lslidar"/>
+  <arg name="baud" default="460800"/>
+  <arg name="frame_id" default="laser"/>
+  <arg name="mask_start_deg" default="90.0"/>
+  <arg name="mask_end_deg" default="270.0"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="lidar" pkg="aic26_cobot" type="lidar_node.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam command="load"
+              file="$(find aic26_cobot)/config/lidar.yaml"/>
+    <param name="port" value="$(arg port)"/>
+    <param name="baud" value="$(arg baud)" type="int"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+    <param name="mask_start_deg" value="$(arg mask_start_deg)"
+           type="double"/>
+    <param name="mask_end_deg" value="$(arg mask_end_deg)"
+           type="double"/>
+  </node>
+
+</launch>

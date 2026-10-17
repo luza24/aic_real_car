@@ -1,0 +1,10 @@
+# Health monitor for the hardware topics. Publishes diagnostic_msgs on
+# /diagnostics at 1 Hz.
+timeout: 2.0
+hardware_id: aic26_cobot
+
+vel_topic: /vel_raw
+imu_topic: /imu/data
+scan_topic: /scan
+image_topic: /camera/image_raw
+odom_topic: /odom

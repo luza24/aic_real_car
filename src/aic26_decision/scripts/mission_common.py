@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Shared building blocks for the aic26_decision nodes.
 

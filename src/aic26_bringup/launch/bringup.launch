@@ -1,83 +1,140 @@
 <?xml version="1.0"?>
 <launch>
 
-  <!-- Single entry point. Pick the run mode; each mode file includes the
-       gazebo world and only the extra nodes it needs.
-         real       real inspection mission (perception + mission_controller)
-         demo       showcase loop (faked detection, sky advances 4.5h/pass)
-         capture    loop screenshot capture for the dataset
-         waypoints  traverse every waypoint once (map / localization check)
-         mapping    gmapping on the simulated laser -->
+  <!-- Single entry point. The backend selects simulation or the real robot;
+       the mode selects what runs on that backend.
 
-  <arg name="mode"      default="real"/>
-  <arg name="world"     default="world"/>
+         backend:=sim    Gazebo simulation
+         backend:=real   aic26_cobot hardware drivers
+
+       Modes:
+         mission    inspection mission (perception + mission_controller)
+         demo       showcase loop (faked detection)
+         capture    loop screenshot capture for the dataset
+         waypoints  traverse every waypoint once
+         mapping    gmapping and teleop
+
+       `mode:=real` is accepted as an alias for `mode:=mission`. -->
+
+  <arg name="mode" default="mission"/>
+  <arg name="backend" default="sim"/>
+
+  <!-- simulation backend -->
+  <arg name="sim" default="sim"/>
   <arg name="day_night" default="day"/>
-  <arg name="sky_time"  default=""/>
-  <arg name="map_file"  default="$(find aic26_slam)/maps/world.yaml"/>
-  <arg name="use_rviz"  default="true"/>
+  <arg name="sky_time" default=""/>
   <arg name="show_view" default="true"/>
-  <!-- start-up delays: simulation before navigation, navigation before tasks -->
-  <arg name="nav_delay"  default="8.0"/>
+
+  <!-- common -->
+  <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="nav_delay" default="8.0"/>
   <arg name="task_delay" default="10.0"/>
 
-  <group if="$(eval arg('mode') == 'real')">
+  <!-- real hardware backend -->
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="teleop" default="false"/>
+  <arg name="gui" default="true"/>
+  <arg name="light_fallback"
+       default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
+
+  <group if="$(eval arg('mode') == 'mission' or arg('mode') == 'real')">
     <include file="$(find aic26_bringup)/launch/mission.launch">
-      <arg name="world"     value="$(arg world)"/>
+      <arg name="backend" value="$(arg backend)"/>
+      <arg name="sim" value="$(arg sim)"/>
       <arg name="day_night" value="$(arg day_night)"/>
-      <arg name="sky_time"  value="$(arg sky_time)"/>
-      <arg name="map_file"  value="$(arg map_file)"/>
-      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
       <arg name="show_view" value="$(arg show_view)"/>
-      <arg name="nav_delay"  value="$(arg nav_delay)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+      <arg name="gui" value="$(arg gui)"/>
+      <arg name="light_fallback" value="$(arg light_fallback)"/>
+      <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
     </include>
   </group>
 
   <group if="$(eval arg('mode') == 'demo')">
     <include file="$(find aic26_bringup)/launch/demo.launch">
-      <arg name="world"     value="$(arg world)"/>
+      <arg name="backend" value="$(arg backend)"/>
+      <arg name="sim" value="$(arg sim)"/>
       <arg name="day_night" value="$(arg day_night)"/>
-      <arg name="sky_time"  value="$(arg sky_time)"/>
-      <arg name="map_file"  value="$(arg map_file)"/>
-      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
       <arg name="show_view" value="$(arg show_view)"/>
-      <arg name="nav_delay"  value="$(arg nav_delay)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+      <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
     </include>
   </group>
-
   <group if="$(eval arg('mode') == 'capture')">
     <include file="$(find aic26_bringup)/launch/capture.launch">
-      <arg name="world"     value="$(arg world)"/>
+      <arg name="backend" value="$(arg backend)"/>
+      <arg name="sim" value="$(arg sim)"/>
       <arg name="day_night" value="$(arg day_night)"/>
-      <arg name="sky_time"  value="$(arg sky_time)"/>
-      <arg name="map_file"  value="$(arg map_file)"/>
-      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
       <arg name="show_view" value="$(arg show_view)"/>
-      <arg name="nav_delay"  value="$(arg nav_delay)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+      <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
     </include>
   </group>
 
   <group if="$(eval arg('mode') == 'waypoints')">
     <include file="$(find aic26_bringup)/launch/waypoints.launch">
-      <arg name="world"     value="$(arg world)"/>
+      <arg name="backend" value="$(arg backend)"/>
+      <arg name="sim" value="$(arg sim)"/>
       <arg name="day_night" value="$(arg day_night)"/>
-      <arg name="sky_time"  value="$(arg sky_time)"/>
-      <arg name="map_file"  value="$(arg map_file)"/>
-      <arg name="use_rviz"  value="$(arg use_rviz)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="map_file" value="$(arg map_file)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
       <arg name="show_view" value="$(arg show_view)"/>
-      <arg name="nav_delay"  value="$(arg nav_delay)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+      <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
     </include>
   </group>
 
   <group if="$(eval arg('mode') == 'mapping')">
     <include file="$(find aic26_bringup)/launch/mapping.launch">
-      <arg name="world"     value="$(arg world)"/>
+      <arg name="backend" value="$(arg backend)"/>
+      <arg name="sim" value="$(arg sim)"/>
       <arg name="day_night" value="$(arg day_night)"/>
-      <arg name="sky_time"  value="$(arg sky_time)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
       <arg name="show_view" value="$(arg show_view)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
       <arg name="nav_delay" value="$(arg nav_delay)"/>
     </include>
   </group>

@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Backend selector. Every run mode includes this file, so the same mode
+       can run on the Gazebo simulation or on the real robot.
+
+         backend:=sim   Gazebo simulation + simulated robot
+         backend:=real  aic26_cobot hardware drivers -->
+
+  <arg name="backend" default="sim"/>
+
+  <!-- simulation -->
+  <arg name="sim" default="sim"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time" default=""/>
+  <arg name="show_view" default="true"/>
+
+  <!-- real hardware -->
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="teleop" default="false"/>
+
+  <group if="$(eval arg('backend') == 'sim')">
+    <include file="$(find aic26_gazebo)/launch/$(arg sim).launch">
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('backend') == 'real')">
+    <include file="$(find aic26_cobot)/launch/hardware.launch">
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+    </include>
+    <include if="$(arg show_view)"
+             file="$(find aic26_utils)/launch/camera_view.launch">
+      <arg name="image" value="/camera/image_raw"/>
+    </include>
+  </group>
+
+</launch>

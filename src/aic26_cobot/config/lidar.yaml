@@ -1,0 +1,22 @@
+# Leishen N10_P lidar on the CDC-ACM port /dev/lslidar.
+port: /dev/lslidar
+baud: 460800
+
+topic: /scan
+frame_id: laser
+
+# 720 bins = 0.5 degree resolution over a full circle.
+bins: 720
+min_range: 0.2
+max_range: 4.0
+scan_rate: 10.0
+
+# Mounting correction. angle_sign -1 mirrors the scan, angle_offset_deg
+# rotates it. Keep 0/1 for the stock mounting.
+angle_offset_deg: 0.0
+angle_sign: 1
+
+# The lidar on the car has a 90..270 degree blind sector. Set both values
+# to -1 to publish the complete circle instead.
+mask_start_deg: 90.0
+mask_end_deg: 270.0

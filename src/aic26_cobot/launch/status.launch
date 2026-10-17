@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="hardware_status" pkg="aic26_cobot"
+        type="hardware_status_node.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam command="load"
+              file="$(find aic26_cobot)/config/status.yaml"/>
+  </node>
+
+</launch>

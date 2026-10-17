@@ -59,11 +59,11 @@
 
   <!-- camera_view.py: the stock image_view keeps its 320x240 GTK window when
        the display is X11 forwarded (see the docstring of the script) -->
-  <node if="$(arg show_view)" pkg="aic26_gazebo" type="camera_view.py"
-        name="camera_view" output="screen">
-    <param name="image"  value="/camera/image_raw"/>
-    <param name="width"  value="$(arg view_width)"/>
-    <param name="height" value="$(arg view_height)"/>
-  </node>
+  <include if="$(arg show_view)"
+           file="$(find aic26_utils)/launch/camera_view.launch">
+    <arg name="image" value="/camera/image_raw"/>
+    <arg name="width" value="$(arg view_width)"/>
+    <arg name="height" value="$(arg view_height)"/>
+  </include>
 
 </launch>

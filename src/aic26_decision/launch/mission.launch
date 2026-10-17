@@ -10,6 +10,8 @@
   <!-- show the detection result GUI and write the results to disk -->
   <arg name="gui"            default="true"/>
   <arg name="results_dir"    default="$(find aic26_perception)/results"/>
+  <!-- optional generic vision light name for hardware runs without sim truth -->
+  <arg name="light_fallback" default=""/>
   <!-- start-up delay (s) applied to the node, so the caller can wait for the
        simulation / navigation stack to come up first. 0 disables the wait. -->
   <arg name="node_delay"     default="0.0"/>
@@ -22,6 +24,7 @@
 
     <param name="vision_topic"  value="/perception/traffic_light"/>
     <param name="truth_topic"   value="/traffic_light/state"/>
+    <param name="light_fallback" value="$(arg light_fallback)"/>
     <param name="result_topic"  value="/perception/result"/>
     <param name="detect_topic"  value="/perception/detect"/>
     <param name="speech_topic"  value="/speech"/>

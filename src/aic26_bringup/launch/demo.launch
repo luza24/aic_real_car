@@ -1,31 +1,52 @@
 <?xml version="1.0"?>
 <launch>
 
-  <!-- Showcase flow: simulation + navigation + demo_cycle. Walks the route
-       over and over with a faked detection result and a spoken announcement,
-       advancing the sky box by 4.5h every pass. No perception nodes needed. -->
+  <!-- Showcase flow: backend + navigation + demo_cycle. Walks the route with
+       a faked detection result and a spoken announcement. -->
 
-  <arg name="world"     default="world"/>
+  <arg name="backend" default="sim"/>
+  <arg name="sim" default="sim"/>
   <arg name="day_night" default="day"/>
-  <arg name="sky_time"  default=""/>
-  <arg name="map_file"  default="$(find aic26_slam)/maps/world.yaml"/>
-  <arg name="use_rviz"  default="true"/>
+  <arg name="sky_time" default=""/>
+  <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
+  <arg name="use_rviz" default="true"/>
   <arg name="show_view" default="true"/>
-  <!-- start-up delays: let the simulation come up before the navigation stack,
-       and the navigation stack before the task nodes -->
-  <arg name="nav_delay"   default="8.0"/>
-  <arg name="task_delay"  default="10.0"/>
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="teleop" default="false"/>
+  <arg name="set_initial_pose"
+       default="$(eval 'false' if arg('backend') == 'real' else 'true')"/>
+  <arg name="laser_min_range"
+       default="$(eval '0.2' if arg('backend') == 'real' else '0.1')"/>
+  <arg name="laser_max_range"
+       default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
+  <arg name="nav_delay" default="8.0"/>
+  <arg name="task_delay" default="10.0"/>
 
-  <include file="$(find aic26_gazebo)/launch/$(arg world).launch">
+  <include file="$(find aic26_bringup)/launch/backend.launch">
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="sim" value="$(arg sim)"/>
     <arg name="day_night" value="$(arg day_night)"/>
-    <arg name="sky_time"  value="$(arg sky_time)"/>
+    <arg name="sky_time" value="$(arg sky_time)"/>
     <arg name="show_view" value="$(arg show_view)"/>
+    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+    <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="imu_port" value="$(arg imu_port)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="camera_device" value="$(arg camera_device)"/>
+    <arg name="teleop" value="$(arg teleop)"/>
   </include>
 
   <include file="$(find aic26_navigation)/launch/navigation.launch">
-    <arg name="map_file"   value="$(arg map_file)"/>
-    <arg name="use_rviz"   value="$(arg use_rviz)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
     <arg name="node_delay" value="$(arg nav_delay)"/>
+    <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+    <arg name="laser_min_range" value="$(arg laser_min_range)"/>
+    <arg name="laser_max_range" value="$(arg laser_max_range)"/>
   </include>
 
   <include file="$(find aic26_decision)/launch/demo.launch">

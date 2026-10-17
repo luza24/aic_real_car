@@ -6,6 +6,7 @@
 
 build/
 devel/
+install/
 .catkin_workspace
 
 __pycache__/

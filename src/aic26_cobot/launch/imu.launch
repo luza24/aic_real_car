@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="port" default="/dev/imu"/>
+  <arg name="baud" default="9600"/>
+  <arg name="frame_id" default="imu_link"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="imu" pkg="aic26_cobot" type="imu_node.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam command="load"
+              file="$(find aic26_cobot)/config/imu.yaml"/>
+    <param name="port" value="$(arg port)"/>
+    <param name="baud" value="$(arg baud)" type="int"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+  </node>
+
+</launch>

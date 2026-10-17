@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="port" default="/dev/carserial"/>
+  <arg name="baud" default="115200"/>
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="publish_tf" default="true"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="chassis" pkg="aic26_cobot" type="chassis_node.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam command="load"
+              file="$(find aic26_cobot)/config/chassis.yaml"/>
+    <param name="port" value="$(arg port)"/>
+    <param name="baud" value="$(arg baud)" type="int"/>
+    <param name="use_imu_yaw" value="$(arg use_imu_yaw)" type="bool"/>
+    <param name="publish_tf" value="$(arg publish_tf)" type="bool"/>
+  </node>
+
+</launch>

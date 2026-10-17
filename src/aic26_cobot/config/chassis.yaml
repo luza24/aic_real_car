@@ -1,0 +1,37 @@
+# STM32 four-wheel chassis on the USB-serial adapter /dev/carserial.
+# The protocol is the 12-byte AA BB 0A 12 02 frame used by the car.
+port: /dev/carserial
+baud: 115200
+
+cmd_topic: /cmd_vel
+vel_topic: /vel_raw
+odom_topic: /odom
+
+odom_frame: odom
+base_frame: base_footprint
+publish_tf: true
+
+# 20 Hz is enough for move_base and keeps the serial link quiet.
+publish_rate: 20.0
+
+# Stop the motors when /cmd_vel stops arriving.
+cmd_timeout: 0.5
+
+# Do not publish a stale chassis velocity for longer than this.
+feedback_timeout: 1.0
+
+# Some STM32 UART parsers want a short gap between bytes. 0.0 writes the
+# complete frame in one call; use 0.0004 if the chassis drops frames.
+byte_delay: 0.0
+
+linear_scale: 1.0
+angular_scale: 0.96
+max_linear: 0.5
+max_angular: 1.5
+
+# Fuse the WIT yaw into the chassis yaw integration. The chassis yaw rate
+# is still used between IMU samples, so a missing IMU only degrades drift.
+use_imu_yaw: true
+imu_topic: /imu/data
+imu_timeout: 0.2
+imu_correction_gain: 0.1

@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_bringup</name>
   <version>0.0.0</version>
-  <description>Top-level launch files for simulation, navigation and missions.</description>
+  <description>Top-level launch files for simulation, real hardware, navigation and missions.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 
@@ -11,10 +11,12 @@
   <buildtool_depend>catkin</buildtool_depend>
 
   <exec_depend>aic26_gazebo</exec_depend>
+  <exec_depend>aic26_cobot</exec_depend>
   <exec_depend>aic26_navigation</exec_depend>
   <exec_depend>aic26_decision</exec_depend>
   <exec_depend>aic26_perception</exec_depend>
   <exec_depend>aic26_slam</exec_depend>
+  <exec_depend>aic26_utils</exec_depend>
 
   <export>
 

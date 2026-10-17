@@ -1,0 +1,70 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Start every real-hardware interface. Each block can be disabled so a
+       single device can be brought up on its own. -->
+
+  <arg name="chassis" default="true"/>
+  <arg name="imu" default="true"/>
+  <arg name="lidar" default="true"/>
+  <arg name="camera" default="true"/>
+  <arg name="status" default="true"/>
+  <arg name="robot_state_publisher" default="true"/>
+  <arg name="teleop" default="false"/>
+
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="publish_tf" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <group if="$(arg robot_state_publisher)">
+    <param name="robot_description"
+           command="$(find xacro)/xacro $(find aic26_cobot)/urdf/aic26_cobot.urdf.xacro"/>
+    <node name="robot_state_publisher" pkg="robot_state_publisher"
+          type="robot_state_publisher" output="screen"/>
+  </group>
+
+  <group if="$(arg chassis)">
+    <include file="$(find aic26_cobot)/launch/chassis.launch">
+      <arg name="port" value="$(arg chassis_port)"/>
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="publish_tf" value="$(arg publish_tf)"/>
+      <arg name="node_delay" value="$(arg node_delay)"/>
+    </include>
+  </group>
+
+  <group if="$(arg imu)">
+    <include file="$(find aic26_cobot)/launch/imu.launch">
+      <arg name="port" value="$(arg imu_port)"/>
+      <arg name="node_delay" value="$(arg node_delay)"/>
+    </include>
+  </group>
+
+  <group if="$(arg lidar)">
+    <include file="$(find aic26_cobot)/launch/lidar.launch">
+      <arg name="port" value="$(arg lidar_port)"/>
+      <arg name="node_delay" value="$(arg node_delay)"/>
+    </include>
+  </group>
+
+  <group if="$(arg camera)">
+    <include file="$(find aic26_cobot)/launch/camera.launch">
+      <arg name="device" value="$(arg camera_device)"/>
+      <arg name="node_delay" value="$(arg node_delay)"/>
+    </include>
+  </group>
+
+  <group if="$(arg status)">
+    <include file="$(find aic26_cobot)/launch/status.launch">
+      <arg name="node_delay" value="$(arg node_delay)"/>
+    </include>
+  </group>
+
+  <group if="$(arg teleop)">
+    <include file="$(find aic26_cobot)/launch/teleop.launch"/>
+  </group>
+
+</launch>

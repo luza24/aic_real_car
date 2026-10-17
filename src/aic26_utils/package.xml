@@ -2,16 +2,17 @@
 <package format="2">
   <name>aic26_utils</name>
   <version>0.0.0</version>
-  <description>Placeholder package for shared helpers (currently empty).</description>
+  <description>Shared utility nodes and launch files for the AIC26 stack.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 
   <license>TODO</license>
 
   <buildtool_depend>catkin</buildtool_depend>
-  <depend>roscpp</depend>
+  <depend>cv_bridge</depend>
   <depend>rospy</depend>
-  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <exec_depend>python3-opencv</exec_depend>
 
   <export>
 

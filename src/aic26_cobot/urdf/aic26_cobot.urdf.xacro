@@ -1,0 +1,57 @@
+<?xml version="1.0"?>
+<!--
+  Minimal TF tree for the real AIC26 robot.
+
+  The dimensions mirror aic26_description/urdf/gazebo_car.xacro,
+  gazebo_laser.xacro and gazebo_camera.xacro so the hardware and the
+  simulation share the same frame names. Only links and fixed joints are
+  declared here: robot_state_publisher needs nothing else and the Gazebo
+  plugins are irrelevant on the real robot.
+
+  If the real mounting differs, update the offsets in this file.
+-->
+<robot name="aic26_cobot" xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:property name="wheel_radius" value="0.07"/>
+  <xacro:property name="laser_z" value="0.085"/>
+  <xacro:property name="camera_x" value="0.0975"/>
+  <xacro:property name="camera_z" value="0.055"/>
+  <xacro:property name="imu_z" value="0.02"/>
+
+  <link name="base_footprint"/>
+
+  <link name="base_link"/>
+  <joint name="base_link_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="laser"/>
+  <joint name="laser_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="laser"/>
+    <origin xyz="0 0 ${laser_z}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera"/>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="camera"/>
+    <origin xyz="${camera_x} 0 ${camera_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- REP 103 optical frame: z forward, x right, y down. -->
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 ${imu_z}" rpy="0 0 0"/>
+  </joint>
+</robot>

@@ -1,0 +1,25 @@
+# Orbbec DaBai DCW2 RGB stream exposed as a UVC device.
+# The depth stream is a vendor-specific USB interface and is not handled
+# by this OpenCV based node.
+device: /dev/video0
+width: 1280
+height: 720
+fps: 30
+fourcc: MJPG
+
+# The simulation publishes the image frame as "camera". Keep the same name
+# so existing perception and RViz configurations keep working. The URDF
+# also provides camera_optical_frame for consumers that need optical axes.
+frame_id: camera
+image_topic: /camera/image_raw
+camera_info_topic: /camera/camera_info
+
+# Intrinsics. fx/fy/cx/cy <= 0 are derived from hfov and the image size.
+hfov: 1.57079632679
+fx: 0.0
+fy: 0.0
+cx: 0.0
+cy: 0.0
+
+flip_horizontal: false
+flip_vertical: false

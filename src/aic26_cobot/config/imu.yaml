@@ -1,0 +1,12 @@
+# WIT IMU on the second USB-serial adapter /dev/imu.
+port: /dev/imu
+baud: 9600
+
+topic: /imu/data
+mag_topic: /imu/mag
+frame_id: imu_link
+
+# The WIT magnetic field values are raw counts, not calibrated teslas.
+# Enable this only when the consumer knows how to scale them.
+publish_mag: false
+mag_scale: 1.0

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- OpenCV camera viewer. Works for the simulated and the real camera. -->
+
+  <arg name="show" default="true"/>
+  <arg name="image" default="/camera/image_raw"/>
+  <arg name="width" default="640"/>
+  <arg name="height" default="360"/>
+  <arg name="window_name" default="camera"/>
+
+  <node if="$(arg show)" name="camera_view" pkg="aic26_utils"
+        type="camera_view.py" output="screen">
+    <param name="image" value="$(arg image)"/>
+    <param name="width" value="$(arg width)"/>
+    <param name="height" value="$(arg height)"/>
+    <param name="window_name" value="$(arg window_name)"/>
+  </node>
+
+</launch>

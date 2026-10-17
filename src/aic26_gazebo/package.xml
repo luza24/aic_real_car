@@ -3,8 +3,8 @@
   <name>aic26_gazebo</name>
   <version>0.0.1</version>
   <description>
-    Gazebo world, models and visual plugins for the AIC26 Smart Community
-    simulation.
+    Gazebo simulation assets for the AIC26 Smart Community: community world,
+    models and visual plugins.
   </description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
@@ -19,6 +19,8 @@
   <depend>gazebo_plugins</depend>
   <depend>gazebo_dev</depend>
   <depend>aic26_msgs</depend>
+
+  <exec_depend>aic26_utils</exec_depend>
 
   <export>
     <gazebo_ros gazebo_model_path="${prefix}/models"/>

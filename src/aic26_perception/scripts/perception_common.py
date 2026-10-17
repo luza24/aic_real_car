@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Shared helpers for the aic26_perception detectors.
 

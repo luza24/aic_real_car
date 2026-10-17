@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-"""Live view of the simulated camera in an OpenCV window.
+"""Live view of a camera topic in an OpenCV window.
 
 Replaces the stock ``image_view`` node, which keeps OpenCV's 320x240 GTK
 window over ssh -X because it resizes only *after* mapping the window. Here

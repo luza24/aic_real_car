@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="device" default="/dev/video0"/>
+  <arg name="width" default="1280"/>
+  <arg name="height" default="720"/>
+  <arg name="fps" default="30"/>
+  <arg name="frame_id" default="camera"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="camera" pkg="aic26_cobot" type="camera_node.py"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam command="load"
+              file="$(find aic26_cobot)/config/camera.yaml"/>
+    <param name="device" value="$(arg device)"/>
+    <param name="width" value="$(arg width)" type="int"/>
+    <param name="height" value="$(arg height)" type="int"/>
+    <param name="fps" value="$(arg fps)" type="int"/>
+    <param name="frame_id" value="$(arg frame_id)"/>
+  </node>
+
+</launch>
