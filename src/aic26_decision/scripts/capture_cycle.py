@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-
 """
 Dataset capture cycle.
 
 Drives the robot along the real inspection route (config/screenshot_cycle.yaml
-mirrors config/tasks.yaml) and saves labelled screenshots at every stop. The
+mirrors config/tasks.yaml) and saves labeled screenshots at every stop. The
 vision detectors are replaced by a directly published result, so the whole
 cycle runs end to end without any model and the images are stored under
 
@@ -43,10 +42,11 @@ except ImportError:
 
 class ScreenshotCycle(RobotDriver):
     def __init__(self):
-        super(ScreenshotCycle, self).__init__(
-            light_topic=rospy.get_param('~light_topic', '/traffic_light/state'))
+        light_topic = rospy.get_param('~light_topic', '/traffic_light/state')
+        super(ScreenshotCycle, self).__init__(light_topic=light_topic)
 
-        self.waypoints = self.load_waypoints(rospy.get_param('~waypoints_file'))
+        self.waypoints = self.load_waypoints(
+            rospy.get_param('~waypoints_file'))
         self.stops = self.load_stops(rospy.get_param('~route_file'))
         self.out_dir = rospy.get_param('~output_dir')
 
@@ -164,8 +164,8 @@ class ScreenshotCycle(RobotDriver):
         self.fake_vision(stop)
 
         label = stop.get("label", name)
-        # in loop mode only top up the labels that are still short, so a long
-        # keyword interrupt does not leave one stop with a huge surplus
+        # In loop mode only top up the labels that are still short, so a long
+        # keyboard interrupt does not leave one stop with a huge surplus.
         want = self.targets.get(label, 1)
         if self.until_done:
             todo = max(0, want - self.counts.get(label, 0))
@@ -220,7 +220,8 @@ class ScreenshotCycle(RobotDriver):
             rospy.logwarn('day_night.py not found, sky time not advanced')
             return
 
-        nxt = (rospy.get_param('/sky_time', 10.0) + float(self.sky_step)) % 24.0
+        nxt = (rospy.get_param('/sky_time', 10.0) +
+               float(self.sky_step)) % 24.0
         try:
             subprocess.call(['python3', self.day_night_script,
                              '_time:=%s' % nxt])
@@ -229,7 +230,7 @@ class ScreenshotCycle(RobotDriver):
             rospy.logwarn('could not run day_night.py: %s', err)
 
     def resume(self):
-        """Count the images already in out_dir so a re-run tops up, not refills.
+        """Count existing images so a re-run tops up, not refills.
 
         Filenames are <label>_%04i.jpg, so the highest index tells us how many
         shots this label already has. Without this a fresh process would start
@@ -281,8 +282,9 @@ class ScreenshotCycle(RobotDriver):
 
                 missing = self.pending()
                 if not missing:
-                    rospy.loginfo("all capture targets reached after %d cycles",
-                                  self.cycle)
+                    rospy.loginfo(
+                        "all capture targets reached after %d cycles",
+                        self.cycle)
                     break
                 rospy.loginfo("cycle %d done, still short: %s",
                               self.cycle,

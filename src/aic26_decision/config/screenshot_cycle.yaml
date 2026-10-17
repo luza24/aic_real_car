@@ -5,7 +5,7 @@
 # in-place turns, same dwell times.
 #
 # The vision detectors are replaced by a directly published result, so the
-# cycle can run end to end without any model. Each stop saves labelled
+# cycle can run end to end without any model. Each stop saves labeled
 # screenshots into .datasets/screenshots/<label>/.
 #
 # Fields:

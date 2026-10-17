@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Showcase cycle.
 
@@ -45,10 +44,11 @@ except ImportError:
 
 class DemoCycle(RobotDriver):
     def __init__(self):
-        super(DemoCycle, self).__init__(
-            light_topic=rospy.get_param('~light_topic', '/traffic_light/state'))
+        light_topic = rospy.get_param('~light_topic', '/traffic_light/state')
+        super(DemoCycle, self).__init__(light_topic=light_topic)
 
-        self.waypoints = self.load_waypoints(rospy.get_param('~waypoints_file'))
+        self.waypoints = self.load_waypoints(
+            rospy.get_param('~waypoints_file'))
         self.stops = self.load_stops(rospy.get_param('~route_file'))
         self.cycle = 0
 
@@ -85,7 +85,7 @@ class DemoCycle(RobotDriver):
         rospy.loginfo("speak: %s", text)
 
     def fake_vision(self, stop):
-        """Publish the planned result, then announce it like the mission does."""
+        """Publish the planned result and announce it like the mission."""
         result = stop.get("result")
         if not result:
             return
@@ -114,8 +114,8 @@ class DemoCycle(RobotDriver):
             total = payload.get("total", 0)
             intruder = payload.get("intruder", 0)
             if intruder:
-                return "Community has %d people, %d non-community people found." \
-                       % (total, intruder)
+                return ("Community has %d people, %d non-community "
+                        "people found." % (total, intruder))
             return "Community has %d people, no non-community people." % total
         if target == "car":
             plate = payload.get("plate", "")
@@ -169,14 +169,15 @@ class DemoCycle(RobotDriver):
         return None
 
     def advance_sky_time(self):
-        """Move the sky box time forward by ~sky_step hours via day_night.py."""
+        """Move the sky box time forward by ~sky_step hours."""
         if not self.sky_step:
             return
         if not self.day_night_script:
             rospy.logwarn('day_night.py not found, sky time not advanced')
             return
 
-        nxt = (rospy.get_param('/sky_time', 10.0) + float(self.sky_step)) % 24.0
+        nxt = (rospy.get_param('/sky_time', 10.0) +
+               float(self.sky_step)) % 24.0
         try:
             subprocess.call(['python3', self.day_night_script,
                              '_time:=%s' % nxt])

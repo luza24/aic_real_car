@@ -8,7 +8,7 @@
 
     <xacro:property name="mount_x" value="0.09"/>
     <xacro:property name="mount_y" value="0.0"/>
-    <xacro:property name="mount_z" value="${base_link_height / 2 + support_length / 3}"/> 
+    <xacro:property name="mount_z" value="${base_link_height / 2 + support_length / 3}"/>
 
     <xacro:property name="mount_m" value="0.002"/>
 
@@ -45,13 +45,13 @@
     <xacro:property name="camera_length" value="0.01"/>
     <xacro:property name="camera_width" value="0.03"/>
     <xacro:property name="camera_height" value="0.02"/>
-    
+
     <xacro:property name="camera_x" value="${mount_length / 2 + camera_length / 2}"/>
 
     <xacro:property name="camera_y" value="0.0"/>
 
-    <xacro:property name="camera_z" value="${mount_height / 4}"/> 
-    
+    <xacro:property name="camera_z" value="${mount_height / 4}"/>
+
     <xacro:property name="camera_m" value="0.01"/>
 
     <link name="camera">
@@ -83,43 +83,43 @@
         <material>Gazebo/Indigo</material>
 
         <sensor type="camera" name="camera_node">
-        <update_rate>30.0</update_rate>
-        
-        <camera name="head">
-            <horizontal_fov>1.570796</horizontal_fov>
-            
-            <image>
-                <width>1280</width>
-                <height>720</height>
-                <format>R8G8B8</format>
-            </image>
-            
-            <clip>
-                <near>0.02</near>
-                <far>300</far>
-            </clip>
-            
-            <noise>
-                <type>gaussian</type>
-                <mean>0.0</mean>
-                <stddev>0.007</stddev>
-            </noise>
-        </camera>
+            <update_rate>30.0</update_rate>
 
-        <plugin name="gazebo_camera" filename="libgazebo_ros_camera.so">
-            <alwaysOn>true</alwaysOn>
-            <updateRate>0.0</updateRate>
-            <cameraName>camera</cameraName>
-            <imageTopicName>image_raw</imageTopicName>
-            <cameraInfoTopicName>camera_info</cameraInfoTopicName>
-            <frameName>camera</frameName>
-            <hackBaseline>0.07</hackBaseline>
-            <distortionK1>0.0</distortionK1>
-            <distortionK2>0.0</distortionK2>
-            <distortionK3>0.0</distortionK3>
-            <distortionT1>0.0</distortionT1>
-            <distortionT2>0.0</distortionT2>
-        </plugin>
+            <camera name="head">
+                <horizontal_fov>1.570796</horizontal_fov>
+
+                <image>
+                    <width>1280</width>
+                    <height>720</height>
+                    <format>R8G8B8</format>
+                </image>
+
+                <clip>
+                    <near>0.02</near>
+                    <far>300</far>
+                </clip>
+
+                <noise>
+                    <type>gaussian</type>
+                    <mean>0.0</mean>
+                    <stddev>0.007</stddev>
+                </noise>
+            </camera>
+
+            <plugin name="gazebo_camera" filename="libgazebo_ros_camera.so">
+                <alwaysOn>true</alwaysOn>
+                <updateRate>0.0</updateRate>
+                <cameraName>camera</cameraName>
+                <imageTopicName>image_raw</imageTopicName>
+                <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+                <frameName>camera</frameName>
+                <hackBaseline>0.07</hackBaseline>
+                <distortionK1>0.0</distortionK1>
+                <distortionK2>0.0</distortionK2>
+                <distortionK3>0.0</distortionK3>
+                <distortionT1>0.0</distortionT1>
+                <distortionT2>0.0</distortionT2>
+            </plugin>
         </sensor>
     </gazebo>
 </robot>

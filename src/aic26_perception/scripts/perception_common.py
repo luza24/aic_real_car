@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Shared helpers for the aic26_perception detectors.
 
@@ -136,8 +135,8 @@ class YoloNet(object):
             try:
                 providers = [p for p in ('CPUExecutionProvider',)
                              if p in ort.get_available_providers()]
-                self.session = ort.InferenceSession(self.model_path,
-                                                    providers=providers or None)
+                self.session = ort.InferenceSession(
+                    self.model_path, providers=providers or None)
                 self.input_name = self.session.get_inputs()[0].name
                 self._resolve_size(self.session.get_inputs()[0].shape)
                 self.log('info', 'loaded %s with onnxruntime (%s)',

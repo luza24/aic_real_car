@@ -10,7 +10,7 @@
   <arg name="sky_time"       default=""/>
   <arg name="map_file"       default="$(find aic26_slam)/maps/world.yaml"/>
   <arg name="use_rviz"       default="true"/>
-  <arg name="show_view"   default="true"/>
+  <arg name="show_view" default="true"/>
   <!-- start-up delays: let the simulation come up before the navigation stack,
        and the navigation stack before the task nodes -->
   <arg name="nav_delay"   default="8.0"/>

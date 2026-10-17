@@ -7,13 +7,8 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
 )
 
-find_package(gazebo REQUIRED)
-
 catkin_package(
   CATKIN_DEPENDS roscpp rospy std_msgs
-)
-
-catkin_package(
 )
 
 include_directories(

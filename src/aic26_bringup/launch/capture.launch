@@ -2,7 +2,7 @@
 <launch>
 
   <!-- Loop capture: simulation + navigation + capture. Walks the
-       route saving labelled screenshots until every stop reaches its "shots"
+       route saving labeled screenshots until every stop reaches its "shots"
        target, advancing the sky box every cycle. -->
 
   <arg name="world"       default="world"/>
@@ -12,7 +12,7 @@
   <arg name="use_rviz"    default="false"/>
   <arg name="sky_step"    default="1.1"/>
   <arg name="until_done"  default="true"/>
-  <arg name="show_view"   default="true"/>
+  <arg name="show_view" default="true"/>
   <!-- start-up delays: let the simulation come up before the navigation stack,
        and the navigation stack before the task nodes -->
   <arg name="nav_delay"   default="8.0"/>

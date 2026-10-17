@@ -1,9 +1,10 @@
 # Perception results
 
-Live output of mission_controller's result viewer (`~gui:=true`).
+Live output of the `mission_controller` result viewer (`~gui:=true`).
 
 Each detection target writes its latest result here on every update, so the
-files are always overwritten with the current reading:
+files are always overwritten with the current reading. The files currently in
+this folder are example snapshots committed with the repository.
 
     people.json        people result (total / community / intruder / boxes)
     car.json           car result (plate / plate_conf / boxes)

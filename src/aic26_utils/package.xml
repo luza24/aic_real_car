@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_utils</name>
   <version>0.0.0</version>
-  <description>The aic26_utils package</description>
+  <description>Placeholder package for shared helpers (currently empty).</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

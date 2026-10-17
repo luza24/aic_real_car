@@ -1,4 +1,9 @@
+<?xml version="1.0"?>
 <launch>
+
+  <!-- Only the inspection mission controller. The world, navigation stack and
+       perception nodes are launched by the aic26_bringup mission launch file;
+       this file can also be included next to an already running stack. -->
 
   <arg name="tasks_file"     default="$(find aic26_decision)/config/tasks.yaml"/>
   <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>

@@ -1,27 +1,26 @@
 #!/usr/bin/env python3
-
 """
 Traffic light controller.
 
-Cycle:  R = 30s, G = 25s, Y = 5s  (total 60s)
+Default cycle: RED 30 s, GREEN 25 s, YELLOW 5 s (60 s total).
+Light 2 runs 15 s behind light 1 (phase_offset).
 
-Light 2 runs 15s BEHIND light 1:
-    local_t = global_t - offset
-
-Publishes aic26_msgs/TrafficLightCommand on /traffic_light/command.
+    pub : /traffic_light/command (aic26_msgs/TrafficLightCommand)
+    pub : /traffic_light/state   (aic26_msgs/TrafficLightState)
 """
 
 import rospy
 from aic26_msgs.msg import TrafficLightCommand, TrafficLightState
 
 DEFAULT_DURATION = {
-    'RED':    30.0,
-    'GREEN':  25.0,
-    'YELLOW':  5.0,
+    'RED': 30.0,
+    'GREEN': 25.0,
+    'YELLOW': 5.0,
 }
 
+
 def load_duration():
-    # read from the "~durations" dictionary, replace the missing params with default values
+    """Merge the ~durations parameter over the built-in defaults."""
     raw = rospy.get_param('~durations', {})
     merged = dict(DEFAULT_DURATION)
     for k, v in raw.items():
@@ -32,20 +31,21 @@ def load_duration():
             rospy.logwarn("Unknown phase '%s' in ~durations, ignored", k)
     return merged
 
+
 DURATION = dict(DEFAULT_DURATION)
 
 PHASE_ORDER = ['RED', 'GREEN', 'YELLOW']
 
-CYCLE = sum(DURATION.values())          # 60.0
+CYCLE = sum(DURATION.values())
 
-# precompute the initial phase
+# Start time of every phase within the default cycle.
 PHASE_STARTS = {}
 _acc = 0.0
 for _p in PHASE_ORDER:
     PHASE_STARTS[_p] = _acc
     _acc += DURATION[_p]
 
-# the textures of the three configurations
+# Lens material of each phase.
 MATERIALS = {
     'RED': {
         'red_lens':    'traffic_light/red_on',
@@ -70,23 +70,23 @@ def phase_at(local_t):
     for p in PHASE_ORDER:
         if t < PHASE_STARTS[p] + DURATION[p]:
             return p
-    return PHASE_ORDER[-1]     # can't reach it
+    return PHASE_ORDER[-1]
 
 
 def publish_phase(pub, model_name, phase):
     for light_name, material_name in MATERIALS[phase].items():
         msg = TrafficLightCommand()
-        msg.model_name    = model_name
-        msg.light_name    = light_name
+        msg.model_name = model_name
+        msg.light_name = light_name
         msg.material_name = material_name
         pub.publish(msg)
 
 
 def publish_state(pub, model_name, phase):
-    # ground truth state, used by the mission controller as a fallback
+    # Ground truth state, used by the mission controller as a fallback.
     msg = TrafficLightState()
     msg.model_name = model_name
-    msg.state      = phase
+    msg.state = phase
     pub.publish(msg)
 
 
@@ -105,17 +105,15 @@ def main():
 
     cmd_topic = rospy.get_param('~command_topic', '/traffic_light/command')
     state_topic = rospy.get_param('~state_topic', '/traffic_light/state')
-    rate_hz   = rospy.get_param('~rate_hz', 20.0)
+    rate_hz = rospy.get_param('~rate_hz', 20.0)
     phase_offset = rospy.get_param('~phase_offset', 15.0)
-    # Seconds to wait after the first subscriber connects before starting the
-    # clock. gzclient loads the world asynchronously and only then can its
-    # visual plugin actually apply materials, so give the render scene time to
-    # come up. 0 disables the wait.
+    # Wait after the first subscriber connects before starting the clock:
+    # gzclient loads the world asynchronously and can apply materials only
+    # after its render scene exists. 0 disables the wait.
     startup_delay = rospy.get_param('~startup_delay', 5.0)
-    # Re-publish the full state of every light at this period (seconds) even if
-    # nothing changed. This lets a late-joining subscriber (e.g. a gzclient that
-    # finished loading after we started) converge to the correct phase without
-    # waiting for the next phase transition. <= 0 disables the refresh.
+    # Re-publish the full state at this period (seconds) so a late subscriber
+    # (e.g. a gzclient that finished loading after us) converges without
+    # waiting for the next phase change. <= 0 disables the refresh.
     refresh_period = rospy.get_param('~refresh_period', 2.0)
 
     lights = [
@@ -125,10 +123,12 @@ def main():
 
     rospy.loginfo("phase_offset = %.1fs (light2 behind light1)", phase_offset)
 
-    pub = rospy.Publisher(cmd_topic, TrafficLightCommand, queue_size=10, latch=True)
-    state_pub = rospy.Publisher(state_topic, TrafficLightState, queue_size=10, latch=True)
+    pub = rospy.Publisher(cmd_topic, TrafficLightCommand,
+                          queue_size=10, latch=True)
+    state_pub = rospy.Publisher(state_topic, TrafficLightState,
+                                queue_size=10, latch=True)
 
-    # wait for connection
+    # Wait until the visual plugin has subscribed.
     while pub.get_num_connections() == 0 and not rospy.is_shutdown():
         rospy.sleep(0.05)
 
@@ -144,18 +144,16 @@ def main():
     for cfg in lights:
         rospy.loginfo("  %s: offset=+%.0fs", cfg['model'], cfg['offset'])
 
-    # publish order only when the command chaged
+    # Publish a light only when its phase changes (or a refresh is due).
     last_phase = {cfg['model']: None for cfg in lights}
     last_refresh = 0.0
 
-    # t = 0 initialy
     start_time = rospy.Time.now()
     rate = rospy.Rate(rate_hz)
 
     while not rospy.is_shutdown():
         global_t = (rospy.Time.now() - start_time).to_sec()
 
-        # Periodic full-state refresh for subscribers that join late.
         refresh_due = (refresh_period > 0.0 and
                        global_t - last_refresh >= refresh_period)
 

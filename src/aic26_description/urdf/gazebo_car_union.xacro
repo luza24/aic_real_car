@@ -8,7 +8,8 @@
   <xacro:include filename="gazebo_camera.xacro"/>
   <xacro:include filename="gazebo_light.xacro"/>
 
-  <!-- Keep the existing navigation API while using the VM project's four-wheel skid drive. -->
+  <!-- Keep the /cmd_vel and /odom interface while using a four-wheel
+       skid-steer drive. -->
   <gazebo>
     <plugin name="mobile_base_controller" filename="libgazebo_ros_skid_steer_drive.so">
       <updateRate>100.0</updateRate>

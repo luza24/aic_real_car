@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """Live view of the simulated camera in an OpenCV window.
 
 Replaces the stock ``image_view`` node, which keeps OpenCV's 320x240 GTK
@@ -71,7 +70,7 @@ class CameraView(object):
             return self.frame
 
     def run(self):
-        """Show the window; runs in the main thread (GTK is not thread safe)."""
+        """Show the window in the main thread (GTK is not thread safe)."""
         scale = gui_scale()
         width = int(rospy.get_param('~width', 640) * scale)
         height = int(rospy.get_param('~height', 360) * scale)
@@ -111,7 +110,8 @@ def main():
     try:
         view.run()
     except cv2.error as err:
-        rospy.logerr("camera view: no usable display / OpenCV window (%s)", err)
+        rospy.logerr("camera view: no usable display / OpenCV window (%s)",
+                     err)
     rospy.signal_shutdown('camera view finished')
 
 

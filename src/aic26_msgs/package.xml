@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_msgs</name>
   <version>0.0.0</version>
-  <description>The aic26_msgs package</description>
+  <description>Traffic light command and state message definitions.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

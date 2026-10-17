@@ -62,8 +62,9 @@ models. ``cv2.dnn`` is kept as a fallback for float models.
 
     pip install onnxruntime        # CPU, enough for these models
 
-These files are intentionally missing. The nodes log a warning and publish
-empty/UNKNOWN results when a model file is absent.
+The three `*_int8.onnx` files are tracked in this repository. The nodes log a
+warning and publish empty / `UNKNOWN` results when a model file is absent or the
+runtime backend cannot load it.
 
 ## Runtime dependency
 
@@ -71,4 +72,6 @@ car_detector.py needs easyocr at runtime (CPU is fine):
 
     pip install easyocr
 
-The node starts without it and simply reports an empty plate.
+easyocr downloads its own detector and recognition weights on first use
+(`~/.EasyOCR`), so the first plate read needs network access or a pre-populated
+cache. The node starts without easyocr and simply reports an empty plate.

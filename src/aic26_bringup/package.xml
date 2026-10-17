@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_bringup</name>
   <version>0.0.0</version>
-  <description>The aic26_bringup package</description>
+  <description>Top-level launch files for simulation, navigation and missions.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

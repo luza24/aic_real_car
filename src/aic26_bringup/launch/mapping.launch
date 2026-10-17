@@ -7,7 +7,7 @@
   <arg name="world"     default="world"/>
   <arg name="day_night" default="day"/>
   <arg name="sky_time"  default=""/>
-  <arg name="show_view"   default="true"/>
+  <arg name="show_view" default="true"/>
   <!-- start-up delays: let the simulation come up before the mapping stack, and
        the mapping stack before the task nodes -->
   <arg name="nav_delay"   default="8.0"/>

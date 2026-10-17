@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Traffic light state detector.
 
@@ -13,8 +12,8 @@ The reported ``model_name`` comes from the ``~node_name`` parameter and has to
 match the traffic light model in the world file (``traffic_light_1`` /
 ``traffic_light_2``), so the mission controller can key the state by light.
 
-The model is not shipped with the repository. Train a detector with the
-classes below, export it to int8 ONNX and place it at:
+The int8 ONNX model is included in the package. To train a replacement, use
+the classes below, export it to int8 ONNX and place it at:
 
     aic26_perception/models/traffic_int8.onnx
 
@@ -78,7 +77,7 @@ class TrafficLightDetector(object):
 
         self.bridge = CvBridge()
         self.debug_warned = False   # log the first debug-image failure only
-        self.active = False         # only detect while "traffic_light" is asked
+        self.active = False         # only run while "traffic_light" is asked
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
                            nms=self.nms, num_classes=len(CLASSES),
                            log=self._log)
@@ -92,8 +91,9 @@ class TrafficLightDetector(object):
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
                          Image, self.on_image)
-        rospy.Subscriber(rospy.get_param('~detect_topic', '/perception/detect'),
-                         String, self.on_detect)
+        rospy.Subscriber(
+            rospy.get_param('~detect_topic', '/perception/detect'),
+            String, self.on_detect)
         rospy.loginfo("traffic_light_detector ready (classes: %s)",
                       ','.join(CLASSES))
 
@@ -106,7 +106,7 @@ class TrafficLightDetector(object):
         return os.path.join(pkg, 'models', 'traffic_int8.onnx')
 
     def infer(self, frame):
-        # returns a list of (class_name, score, box)
+        """Return (class_name, score, box) detections for ``frame``."""
         dets = []
         for cls_id, score, box in self.net.infer(frame):
             if 0 <= cls_id < len(CLASSES):
@@ -170,9 +170,8 @@ class TrafficLightDetector(object):
             # failure (e.g. a broken cv_bridge) has to be visible, not silent
             if not self.debug_warned:
                 self.debug_warned = True
-                rospy.logwarn("traffic_light_detector: debug publish skipped: %s",
-                              err)
-
+                rospy.logwarn(
+                    "traffic_light_detector: debug publish skipped: %s", err)
 
 
 def main():

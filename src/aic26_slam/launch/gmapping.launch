@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
 
   <!-- start-up delay (s) applied to the mapping / teleop nodes, so the caller
@@ -27,14 +28,14 @@
 
   </node>
 
-  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find aic26_slam)/rviz/gmapping.rviz" />
+  <node name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find aic26_slam)/rviz/gmapping.rviz"/>
 
-  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py" 
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py"
         name="teleop" output="screen"
         launch-prefix="bash -c 'sleep $(arg node_delay); xterm -e $0 $@'">
     <param name="speed" value="0.1"/>
     <param name="turn"  value="0.5"/>
   </node>
 
-  
 </launch>

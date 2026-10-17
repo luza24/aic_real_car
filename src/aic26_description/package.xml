@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_description</name>
   <version>0.0.0</version>
-  <description>The aic26_description package</description>
+  <description>URDF/xacro description of the armbot robot.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

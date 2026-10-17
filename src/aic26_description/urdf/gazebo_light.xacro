@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+<robot xmlns:xacro="http://wiki.ros.org/xacro">
 
   <xacro:property name="light_length" value="0.006" />
   <xacro:property name="light_radius" value="0.015" />
-  
+
   <xacro:property name="light_m" value="0.02" />
 
   <xacro:macro name="car_light" params="name parent_link color:='White' type:='spot' *origin">
@@ -66,7 +66,7 @@
   <xacro:car_light name="left_headlight" parent_link="base_link">
     <origin xyz="${base_link_length / 2 + light_length / 2} ${base_link_width / 4} ${base_link_height / 6}" rpy="0 0 0"/>
   </xacro:car_light>
-  
+
   <xacro:car_light name="right_headlight" parent_link="base_link">
     <origin xyz="${base_link_length / 2 + light_length / 2} ${base_link_width / -4} ${base_link_height / 6}" rpy="0 0 0"/>
   </xacro:car_light>

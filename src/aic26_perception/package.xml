@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_perception</name>
   <version>0.0.0</version>
-  <description>The aic26_perception package</description>
+  <description>ONNX detectors for traffic lights, people and license plates.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 
@@ -18,7 +18,7 @@
 
   <!-- runtime python packages (pip install, not rosdep):
          onnxruntime  - preferred ONNX backend for the int8 models
-         easyocr      - licence plate reader used by car_detector -->
+         easyocr      - license plate reader used by car_detector -->
 
   <export>
 

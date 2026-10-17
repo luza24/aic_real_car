@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Inspection mission controller.
 
@@ -87,8 +86,9 @@ class MissionController(RobotDriver):
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, queue_size=10)
 
-        rospy.Subscriber(rospy.get_param('~result_topic', '/perception/result'),
-                         String, self.on_result)
+        rospy.Subscriber(
+            rospy.get_param('~result_topic', '/perception/result'),
+            String, self.on_result)
 
         if HAVE_LIGHT_MSG:
             rospy.Subscriber(
@@ -151,8 +151,8 @@ class MissionController(RobotDriver):
             total = res.get("total", 0)
             intruder = res.get("intruder", 0)
             if intruder:
-                return "Community has %d people, %d non-community people found." \
-                       % (total, intruder)
+                return ("Community has %d people, %d non-community "
+                        "people found." % (total, intruder))
             return "Community has %d people, no non-community people." % total
         if target == "car":
             res = self.result_for("car")
@@ -380,7 +380,8 @@ class ResultViewer(object):
             from PIL import Image as PilImage, ImageTk
         except ImportError:
             PilImage = ImageTk = None
-            rospy.logwarn("result viewer: Pillow missing, image panel disabled")
+            rospy.logwarn(
+                "result viewer: Pillow missing, image panel disabled")
 
         try:
             root = tk.Tk()
@@ -506,8 +507,11 @@ class ResultViewer(object):
 
 
 def _make_bridge():
-    from cv_bridge import CvBridge
-    return CvBridge()
+    try:
+        from cv_bridge import CvBridge
+        return CvBridge()
+    except ImportError:
+        return None
 
 
 def default_results_dir():

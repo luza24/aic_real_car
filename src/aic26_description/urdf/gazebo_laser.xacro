@@ -4,11 +4,11 @@
 
     <xacro:property name="support_length" value="0.04" />
     <xacro:property name="support_radius" value="0.005" />
-    
+
     <xacro:property name="support_x" value="0.0" />
     <xacro:property name="support_y" value="0.0" />
-    <xacro:property name="support_z" value="${base_link_height / 2 + support_length / 2}" /> 
-    
+    <xacro:property name="support_z" value="${base_link_height / 2 + support_length / 2}" />
+
     <xacro:property name="support_m" value="0.02" />
 
     <link name="support">
@@ -43,13 +43,13 @@
         <material>Gazebo/White</material>
     </gazebo>
 
-    <xacro:property name="laser_length" value="0.02" /> 
-    <xacro:property name="laser_radius" value="0.025" /> 
-    <xacro:property name="laser_x" value="0.0" /> 
-    <xacro:property name="laser_y" value="0.0" /> 
-    <xacro:property name="laser_z" value="${support_length / 2 + laser_length / 2}" /> 
+    <xacro:property name="laser_length" value="0.02" />
+    <xacro:property name="laser_radius" value="0.025" />
+    <xacro:property name="laser_x" value="0.0" />
+    <xacro:property name="laser_y" value="0.0" />
+    <xacro:property name="laser_z" value="${support_length / 2 + laser_length / 2}" />
 
-    <xacro:property name="laser_m" value="0.1" /> 
+    <xacro:property name="laser_m" value="0.1" />
 
     <link name="laser">
         <visual>
@@ -76,12 +76,12 @@
 
     <gazebo reference="laser">
         <material>Gazebo/Black</material>
-        
+
         <sensor type="ray" name="laser_sensor">
             <pose>0 0 0 0 0 0</pose>
-            
+
             <visualize>false</visualize>
-            
+
             <update_rate>40</update_rate>
             <ray>
                 <scan>
@@ -103,7 +103,7 @@
                     <stddev>0.01</stddev>
                 </noise>
             </ray>
-            
+
             <plugin name="gazebo_ros_laser_controller" filename="libgazebo_ros_laser.so">
                 <topicName>/scan</topicName>
                 <frameName>laser</frameName>

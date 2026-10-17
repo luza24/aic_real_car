@@ -1,8 +1,7 @@
-#include <mutex>
-#include <map>
-#include <string>
 #include <functional>
-#include <utility>
+#include <map>
+#include <mutex>
+#include <string>
 #include <vector>
 
 #include <gazebo/common/Plugin.hh>

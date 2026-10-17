@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-
 """
 Waypoint follower.
 
 Visits every waypoint in config/waypoints.yaml once, in file order, and stops.
-Useful to check the map / localisation / planner without running a full
+Useful to check the map / localization / planner without running a full
 mission.
-
-    (no topics beyond the shared navigation / cmd_vel ones)
 
 The navigation logic comes from mission_common, shared with the other
 aic26_decision nodes.

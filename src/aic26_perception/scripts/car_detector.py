@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Car and license plate detector.
 
@@ -16,7 +15,7 @@ out as real UTF-8 text).
     pub : /perception/result             (std_msgs/String, json)
     pub : /perception/car/image          (sensor_msgs/Image, debug)
 
-The ONNX model is not shipped with the repository. Train a detector with a
+The int8 ONNX model is included in the package. To train a replacement, use a
 single ``car`` class, export it to int8 ONNX and place it at:
 
     aic26_perception/models/car_int8.onnx
@@ -121,8 +120,9 @@ class CarDetector(object):
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
                          Image, self.on_image)
-        rospy.Subscriber(rospy.get_param('~detect_topic', '/perception/detect'),
-                         String, self.on_detect)
+        rospy.Subscriber(
+            rospy.get_param('~detect_topic', '/perception/detect'),
+            String, self.on_detect)
         rospy.loginfo("car_detector ready (class 'car', easyocr=%s)",
                       'yes' if easyocr else 'MISSING')
 
@@ -135,13 +135,12 @@ class CarDetector(object):
         return os.path.join(pkg, 'models', 'car_int8.onnx')
 
     def infer(self, frame):
-        # returns a list of (class_name, score, box)
+        """Return (class_name, score, box) detections for ``frame``."""
         dets = []
         for cls_id, score, box in self.net.infer(frame):
             if 0 <= cls_id < len(CLASSES):
                 dets.append((CLASSES[cls_id], score, box))
         return dets
-
 
     # ------------------------------------------------------------------ ocr
     def load_reader(self):
@@ -166,20 +165,19 @@ class CarDetector(object):
             rospy.logwarn("car_detector: OCR unavailable: %s", err)
             return '', 0.0
         best = ('', 0.0)
+        img = preprocess(crop, scale=self.ocr_scale, binary=self.ocr_binary)
+        try:
+            found = reader.readtext(img, detail=1,
+                                    allowlist=PLATE_ALLOWLIST,
+                                    paragraph=False)
+        except Exception as err:                       # noqa: BLE001
+            rospy.logwarn("car_detector: readtext failed: %s", err)
+            return best
         results = []
-        for variant in ([self.ocr_binary] if self.ocr_binary else [False]):
-            img = preprocess(crop, scale=self.ocr_scale, binary=variant)
-            try:
-                found = reader.readtext(img, detail=1,
-                                        allowlist=PLATE_ALLOWLIST,
-                                        paragraph=False)
-            except Exception as err:                   # noqa: BLE001
-                rospy.logwarn("car_detector: readtext failed: %s", err)
-                continue
-            for _, text, conf in found:
-                clean = tidy(text)
-                if len(clean) >= self.ocr_min_chars:
-                    results.append((clean, float(conf)))
+        for _, text, conf in found:
+            clean = tidy(text)
+            if len(clean) >= self.ocr_min_chars:
+                results.append((clean, float(conf)))
         if results:
             # prefer the longest read, break ties on confidence
             results.sort(key=lambda r: (len(r[0]), r[1]), reverse=True)

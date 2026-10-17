@@ -1,11 +1,12 @@
+<?xml version="1.0"?>
 <launch>
 
   <arg name="day_night" default="day"/>
   <arg name="sky_time"  default=""/>
   <arg name="show_view" default="true"/>
-  <arg name="view_width"  default="640"/>
+  <arg name="view_width" default="640"/>
   <arg name="view_height" default="360"/>
-  <arg name="day_night_gui_delay"  default="12.0"/>
+  <arg name="day_night_gui_delay" default="12.0"/>
 
   <env name="GAZEBO_PLUGIN_PATH"
        value="$(find aic26_gazebo)/../../devel/lib:$(optenv GAZEBO_PLUGIN_PATH)"/>
@@ -55,7 +56,7 @@
         launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
     <param name="gui" value="true"/>
   </node>
-    
+
   <!-- camera_view.py: the stock image_view keeps its 320x240 GTK window when
        the display is X11 forwarded (see the docstring of the script) -->
   <node if="$(arg show_view)" pkg="aic26_gazebo" type="camera_view.py"

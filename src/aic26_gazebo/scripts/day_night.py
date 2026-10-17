@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """Sets the simulated sky box time and the matching light conditions.
 
 The plugin reads /sky_time every frame and republishes it on the Gazebo sky
@@ -105,7 +104,7 @@ def run_gui():
     readout = tk.StringVar()
 
     def refresh(*_):
-        if rospy.is_shutdown(): 
+        if rospy.is_shutdown():
             rospy.loginfo("day night gui exit")
             sys.exit(0)
         h = publish_time(hours.get())
@@ -155,8 +154,9 @@ def run_once():
     if time is None:
         mode = rospy.get_param('~mode', '')
         if mode not in MODE_TIME:
-            rospy.logerr("_mode must be 'day' or 'night' (or pass _time), got '%s'",
-                         mode)
+            rospy.logerr(
+                "_mode must be 'day' or 'night' (or pass _time), got '%s'",
+                mode)
             return
         time = MODE_TIME[mode]
 

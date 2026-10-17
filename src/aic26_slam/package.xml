@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_slam</name>
   <version>0.0.0</version>
-  <description>The aic26_slam package</description>
+  <description>gmapping launch file and the saved 2D map.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

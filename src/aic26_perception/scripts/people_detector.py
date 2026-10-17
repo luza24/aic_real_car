@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Community people detector.
 
@@ -8,13 +7,13 @@ the current view. Every person model has its own class, so each class is
 counted at most once (no double counting within one detection).
 
     sub : /camera/image_raw              (sensor_msgs/Image)
-    sub : /perception/detect             (std_msgs/String, "people" starts a count,
-                                          anything else stops it)
+    sub : /perception/detect             (std_msgs/String, "people" starts a
+                                          count, anything else stops it)
     pub : /perception/result             (std_msgs/String, json)
     pub : /perception/people/image       (sensor_msgs/Image, debug)
 
-The model is not shipped with the repository. Train a detector with the
-classes below, export it to int8 ONNX and place it at:
+The int8 ONNX model is included in the package. To train a replacement, use
+the classes below, export it to int8 ONNX and place it at:
 
     aic26_perception/models/people_int8.onnx
 
@@ -74,8 +73,9 @@ class PeopleDetector(object):
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
                          Image, self.on_image)
-        rospy.Subscriber(rospy.get_param('~detect_topic', '/perception/detect'),
-                         String, self.on_detect)
+        rospy.Subscriber(
+            rospy.get_param('~detect_topic', '/perception/detect'),
+            String, self.on_detect)
         rospy.loginfo("people_detector ready (%d classes)", len(CLASSES))
 
     @staticmethod
@@ -87,7 +87,7 @@ class PeopleDetector(object):
         return os.path.join(pkg, 'models', 'people_int8.onnx')
 
     def infer(self, frame):
-        # returns a list of (class_name, score, box)
+        """Return (class_name, score, box) detections for ``frame``."""
         dets = []
         for cls_id, score, box in self.net.infer(frame):
             if 0 <= cls_id < len(CLASSES):
@@ -157,8 +157,8 @@ class PeopleDetector(object):
             # failure (e.g. a broken cv_bridge) has to be visible, not silent
             if not self.debug_warned:
                 self.debug_warned = True
-                rospy.logwarn("people_detector: debug publish skipped: %s", err)
-
+                rospy.logwarn("people_detector: debug publish skipped: %s",
+                              err)
 
 
 def main():

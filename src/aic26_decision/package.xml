@@ -2,7 +2,7 @@
 <package format="2">
   <name>aic26_decision</name>
   <version>0.0.0</version>
-  <description>The aic26_decision package</description>
+  <description>Mission controller, waypoint follower and demo/capture cycles.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
 
   <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
@@ -17,12 +18,18 @@
 
   <node name="move_base" pkg="move_base" type="move_base" output="screen"
         launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="global_costmap"/>
-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml" command="load" ns="local_costmap"/>
-    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml" command="load"/>
-    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml" command="load"/>
-    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml" command="load" ns="GlobalPlanner"/>
-    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml" command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+              command="load" ns="global_costmap"/>
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+              command="load" ns="local_costmap"/>
+    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
+              command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
+              command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
+              command="load" ns="GlobalPlanner"/>
+    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
+              command="load"/>
 
     <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
     <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>

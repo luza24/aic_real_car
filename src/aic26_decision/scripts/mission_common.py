@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 """
 Shared building blocks for the aic26_decision nodes.
 
@@ -18,7 +17,7 @@ The one entry point the nodes use is :class:`RobotDriver`, which wraps
 and a :meth:`RobotDriver.wait_ready` start-up gate so the nodes tolerate being
 launched before (or after) the simulation and the navigation stack.
 
-Only rclpy/rospy, actionlib, tf and the ROS messages are used, so the module
+Only rospy, actionlib, tf and the ROS messages are used, so the module
 also imports cleanly without a running master (handy for unit tests).
 """
 
@@ -30,7 +29,6 @@ import tf
 import tf.transformations
 from geometry_msgs.msg import Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from tf.transformations import quaternion_from_euler
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -56,7 +54,7 @@ def wrap_angle(angle):
 
 def make_goal(x, y, yaw, frame='map'):
     """Build a move_base goal at ``(x, y, yaw)`` in ``frame``."""
-    q = quaternion_from_euler(0.0, 0.0, yaw)
+    q = tf.transformations.quaternion_from_euler(0.0, 0.0, yaw)
     goal = MoveBaseGoal()
     goal.target_pose.header.frame_id = frame
     goal.target_pose.header.stamp = rospy.Time.now()
@@ -92,7 +90,8 @@ class RobotDriver(object):
         self.turn_tf_timeout = rospy.get_param('~turn_tf_timeout', 3.0)
         self.turn_settle = rospy.get_param('~turn_settle', 0.5)
 
-        # the nav stack (amcl + both costmaps) uses base_footprint, not base_link
+        # The nav stack (amcl and both costmaps) uses base_footprint, not
+        # base_link.
         self.global_frame = rospy.get_param('~global_frame', 'map')
         self.base_frame = rospy.get_param('~base_frame', 'base_footprint')
 
@@ -128,7 +127,8 @@ class RobotDriver(object):
             if not self.client.wait_for_server(
                     rospy.Duration(self.nav_server_timeout)):
                 rospy.logwarn("move_base not available after %.0fs, "
-                              "continuing without it", self.nav_server_timeout)
+                              "continuing without it",
+                              self.nav_server_timeout)
                 return False
             rospy.loginfo("move_base action server is up")
 
@@ -137,7 +137,8 @@ class RobotDriver(object):
                           self.global_frame, self.base_frame)
         else:
             rospy.logwarn("no %s -> %s tf after %.0fs, continuing",
-                          self.global_frame, self.base_frame, self.ready_timeout)
+                          self.global_frame, self.base_frame,
+                          self.ready_timeout)
         return True
 
     def wait_for_tf(self, timeout):
@@ -166,7 +167,7 @@ class RobotDriver(object):
 
     # ------------------------------------------------------------ rotation
     def turn_in_place(self, wp, direction):
-        """Rotate 90 degrees in place to face the target beside the waypoint."""
+        """Rotate 90 degrees in place to face the target."""
         target = wrap_angle(wp["yaw"] + self.turn_angle(direction))
         return self.rotate_to(target, direction)
 
@@ -265,7 +266,8 @@ class RobotDriver(object):
                 return True
             rospy.sleep(0.1)
 
-        rospy.logwarn("%s not green within %.0fs, passing anyway", model, timeout)
+        rospy.logwarn("%s not green within %.0fs, passing anyway", model,
+                      timeout)
         return True
 
 
