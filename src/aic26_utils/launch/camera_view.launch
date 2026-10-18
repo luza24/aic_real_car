@@ -8,6 +8,8 @@
   <arg name="width" default="640"/>
   <arg name="height" default="360"/>
   <arg name="window_name" default="camera"/>
+  <!-- 15 Hz is enough for monitoring and halves the imshow cost. -->
+  <arg name="rate" default="15.0"/>
 
   <node if="$(arg show)" name="camera_view" pkg="aic26_utils"
         type="camera_view.py" output="screen">
@@ -15,6 +17,7 @@
     <param name="width" value="$(arg width)"/>
     <param name="height" value="$(arg height)"/>
     <param name="window_name" value="$(arg window_name)"/>
+    <param name="rate" value="$(arg rate)"/>
   </node>
 
 </launch>

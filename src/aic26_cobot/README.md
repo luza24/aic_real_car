@@ -51,6 +51,24 @@ magnetometer counts.
 so the real and simulated robots share frame names. The chassis node publishes
 `odom -> base_footprint`; `robot_state_publisher` publishes the fixed links.
 
+The chassis starts at the simulated spawn pose `(1.6, 1.7, pi)`
+(`initial_x/y/yaw` in `config/chassis.yaml`). With AMCL using the same initial
+pose this keeps `map -> odom` near identity, so the real robot, odom frame and
+local costmap appear at the same coordinates in RViz as in the simulation.
+`reset_odom` resets to this configured pose, not to `(0, 0, 0)`.
+
+The STM32 sends one feedback frame at about 20 Hz, but the USB-serial adapter
+delivers frames in bursts. The node therefore integrates each frame with the
+fixed `1 / feedback_rate` period instead of the wall-clock arrival interval;
+this removes the pose jumps that otherwise appear as RViz jitter. Small
+feedback values below `linear_deadband` / `angular_deadband` are treated as
+zero at standstill.
+
+`use_imu_yaw:=true` is safe again: the IMU offset is taken relative to the
+configured start yaw (so a start yaw of `pi` is preserved instead of being
+pulled to zero), and corrections are low-pass filtered and applied only
+`imu_correction_rate` times per second with a clamped step.
+
 If a consumer expects `/odom_raw`, remap it in the consumer launch file instead
 of duplicating the odometry stream:
 
@@ -91,10 +109,12 @@ Navigation without the mission, on an already running backend:
 ```bash
 roslaunch aic26_cobot hardware.launch
 roslaunch aic26_navigation navigation.launch \
-  set_initial_pose:=false laser_min_range:=0.2 laser_max_range:=4.0
+  laser_min_range:=0.2 laser_max_range:=4.0
 ```
 
-With `set_initial_pose:=false`, set the robot pose once with the RViz
+AMCL initializes at `(1.6, 1.7, pi)` by default. Override
+`initial_pose_x/y/a` if the robot starts elsewhere, or use
+`set_initial_pose:=false` and set the pose once with the RViz
 "2D Pose Estimate" tool. The hardware path uses the real lidar range (4 m), not
 the 12 m simulation range.
 
@@ -104,8 +124,8 @@ Useful switches:
 # disable individual devices
 roslaunch aic26_cobot hardware.launch camera:=false
 
-# do not fuse the IMU yaw into the chassis odometry
-roslaunch aic26_cobot hardware.launch use_imu_yaw:=false
+# enable the IMU yaw fusion (off by default on real hardware)
+roslaunch aic26_cobot hardware.launch use_imu_yaw:=true
 
 # enable the keyboard teleop node
 roslaunch aic26_cobot hardware.launch teleop:=true
@@ -125,9 +145,10 @@ roslaunch aic26_bringup bringup.launch mode:=mission backend:=real \
   detector publishes one generic model name, which `mission_controller` uses
   when no simulation truth is available. Use dedicated detector instances with
   `light_name:=traffic_light_1/2` if the installation can separate the lights.
-- The hardware mission leaves AMCL without an initial pose and uses the real
+- The hardware mission initializes AMCL at `(1.6, 1.7, pi)` and uses the real
   lidar range; see `aic26_bringup/launch/mission.launch` and
-  `aic26_bringup/launch/backend.launch`.
+  `aic26_bringup/launch/backend.launch`. Override `initial_pose_x/y/a` for a
+  different start pose, or set `set_initial_pose:=false` and set it in RViz.
 - The real camera publishes 1280x720 images, matching the simulation camera.
 
 ## Services
@@ -137,31 +158,52 @@ The chassis node exposes two private services:
 ```bash
 rosservice call /chassis/enable "data: false"   # stop and disable motors
 rosservice call /chassis/enable "data: true"    # allow motion again
-rosservice call /chassis/reset_odom             # reset x, y, yaw to zero
+rosservice call /chassis/reset_odom             # reset to initial_x/y/yaw
 ```
 
+`reset_odom` returns the odometry to the configured start pose (default
+`(1.6, 1.7, pi)`), matching the Gazebo spawn pose. Use the `initial_x`,
+`initial_y` and `initial_yaw` launch arguments to start somewhere else.
+
 The chassis watchdog sends a zero velocity frame when `/cmd_vel` stops
-arriving for `cmd_timeout` seconds, and the shutdown handler sends several zero
+arriving for `cmd_timeout` seconds, and the shutdown handler sends 20 zero
 frames before closing the port.
+
+## Emergency stop
+
+If ROS or the chassis node has already died, send zero-velocity frames
+directly to the serial port. This does not need a ROS master:
+
+```bash
+rosrun aic26_cobot emergency_stop.py
+# or without sourcing a workspace:
+python3 ~/aic26_ws/src/aic26_cobot/scripts/emergency_stop.py \
+  --port /dev/carserial
+```
+
+The script writes zero frames for 3 seconds by default. If the wheels still
+turn, cut the motor power. A host process cannot stop a chassis whose firmware
+keeps the last command, so the STM32 firmware must also implement its own
+command timeout (for example 300 ms without a valid frame).
 
 ## Configuration
 
 All defaults live in `config/` and can be overridden by launch arguments or
 private parameters:
 
-- `config/chassis.yaml`: port, baud, topics, frames, scales, limits, IMU yaw
-  fusion, command timeout.
+- `config/chassis.yaml`: port, baud, topics, frames, start pose, feedback
+  timing/deadbands, scales, limits, IMU yaw fusion, command timeout.
 - `config/imu.yaml`: port, baud, topics, frame, magnetic field switch.
 - `config/lidar.yaml`: port, baud, topic, frame, bins, range limits, mounting
   correction and the 90..270 degree mask.
-- `config/camera.yaml`: V4L2 device, resolution, fps, fourcc, topics, frame,
-  intrinsics and flips.
+- `config/camera.yaml`: V4L2 device, autodetect, resolution, fps, fourcc,
+  topics, frame, intrinsics and flips.
 - `config/status.yaml`: monitored topics and staleness timeout.
 
 The N10_P packet format is the single-echo 108-byte `A5 5A` frame with a CRC8
-sum byte. The chassis frame is `AA BB 0A 12 02` followed by signed 16-bit
-little-endian `x`, `y`, `yaw` in mm/s and mrad/s, and the feedback frame is
-`AA BB 0A 12` plus the same three values. Both are documented in
+sum byte. The command frame is `AA BB 0A 12 02` followed by signed 16-bit
+little-endian `x`, `y`, `yaw` in mm/s and mrad/s; the feedback frame is
+`AA BB 0A 0A` plus the same three values. Both are documented in
 `scripts/hardware_common.py`.
 
 ## Tests
@@ -180,11 +222,19 @@ catkin_make run_tests_aic26_cobot
 
 ## Safety notes
 
+- The STM32 firmware must stop the motors on its own when valid command frames
+  stop. The ROS watchdog only works while the chassis node is alive.
 - Test with the wheels off the ground first.
 - Verify `/cmd_vel` signs and the `angular_scale` value before driving.
 - The two CH340 adapters are identical; keep them in the USB ports that match
   the udev rules, otherwise `/dev/carserial` and `/dev/imu` swap.
-- The lidar mask defaults to 90..270 degrees to match the car mounting. Set
-  both mask values to `-1` to publish the full circle.
+- The lidar is a full 360 degree N10_P. The mask parameters default to `-1`
+  (disabled), matching the previously working car_bringup stack. Only set
+  `mask_start_deg`/`mask_end_deg` if the mechanical mounting really blocks a
+  sector; a half circle is not enough for gmapping/AMCL.
 - The IMU magnetic field is published as raw counts unless `mag_scale` is
   calibrated; it is disabled by default.
+- If the camera cannot be opened, check `v4l2-ctl --list-devices` and
+  `/dev/video*`. A UVC camera behind a low-speed/unpowered hub can enumerate
+  without a video node. The node scans `/dev/video*` and retries MJPG/YUYV when
+  `autodetect` is true.

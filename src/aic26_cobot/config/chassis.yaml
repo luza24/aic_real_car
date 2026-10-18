@@ -11,10 +11,29 @@ odom_frame: odom
 base_frame: base_footprint
 publish_tf: true
 
-# 20 Hz is enough for move_base and keeps the serial link quiet.
-publish_rate: 20.0
+# Start odometry at the Gazebo spawn pose (1.6, 1.7, pi). With AMCL using
+# the same initial pose this makes map->odom identity, so the real robot,
+# the odom frame and the local costmap appear at the same place in RViz as
+# in the simulation instead of starting at (0, 0).
+initial_x: 1.6
+initial_y: 1.7
+initial_yaw: 3.141592
 
-# Stop the motors when /cmd_vel stops arriving.
+# 20 Hz matches the STM32 feedback stream (measured ~19.6 Hz) and the
+# simulation odometry. The serial adapter delivers frames in bursts, so the
+# node integrates each frame with 1/feedback_rate instead of the wall-clock
+# arrival interval.
+publish_rate: 30.0
+feedback_rate: 20.0
+feedback_dt_max: 0.2
+
+# Ignore encoder quantization and electrical noise at standstill.
+linear_deadband: 0.002
+angular_deadband: 0.002
+
+# Stop the motors when /cmd_vel stops arriving while this node is alive.
+# The STM32 firmware must also implement its own command timeout (300 ms is a
+# good value); a host-side node cannot stop the motors after it has died.
 cmd_timeout: 0.5
 
 # Do not publish a stale chassis velocity for longer than this.
@@ -29,9 +48,16 @@ angular_scale: 0.96
 max_linear: 0.5
 max_angular: 1.5
 
-# Fuse the WIT yaw into the chassis yaw integration. The chassis yaw rate
-# is still used between IMU samples, so a missing IMU only degrades drift.
-use_imu_yaw: true
+# Fuse the WIT yaw into the chassis yaw integration. Disabled by default:
+# the WIT yaw is magnetic and noisy indoors. When enabled, the correction is
+# low-pass filtered and applied only imu_correction_rate times per second
+# with a small, clamped step, so it cannot shake the odom TF at the 20 Hz
+# feedback rate.
+use_imu_yaw: false
 imu_topic: /imu/data
 imu_timeout: 0.2
 imu_correction_gain: 0.1
+imu_correction_rate: 2.0
+imu_correction_deadband: 0.005
+imu_correction_max_step: 0.02
+imu_yaw_filter_alpha: 0.3

@@ -28,11 +28,17 @@
   <!-- common -->
   <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
   <arg name="use_rviz" default="true"/>
-  <arg name="nav_delay" default="8.0"/>
-  <arg name="task_delay" default="10.0"/>
+  <arg name="nav_delay" default="15.0"/>
+  <arg name="task_delay" default="20.0"/>
+
+  <!-- AMCL initial pose for sim and real -->
+  <arg name="set_initial_pose" default="true"/>
+  <arg name="initial_pose_x" default="1.6"/>
+  <arg name="initial_pose_y" default="1.7"/>
+  <arg name="initial_pose_a" default="3.141592"/>
 
   <!-- real hardware backend -->
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
@@ -61,6 +67,10 @@
       <arg name="light_fallback" value="$(arg light_fallback)"/>
       <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
+      <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+      <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+      <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+      <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
     </include>
   </group>
 
@@ -81,6 +91,10 @@
       <arg name="teleop" value="$(arg teleop)"/>
       <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
+      <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+      <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+      <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+      <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
     </include>
   </group>
   <group if="$(eval arg('mode') == 'capture')">
@@ -100,6 +114,10 @@
       <arg name="teleop" value="$(arg teleop)"/>
       <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
+      <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+      <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+      <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+      <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
     </include>
   </group>
 
@@ -120,6 +138,10 @@
       <arg name="teleop" value="$(arg teleop)"/>
       <arg name="nav_delay" value="$(arg nav_delay)"/>
       <arg name="task_delay" value="$(arg task_delay)"/>
+      <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+      <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+      <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+      <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
     </include>
   </group>
 
@@ -130,6 +152,7 @@
       <arg name="day_night" value="$(arg day_night)"/>
       <arg name="sky_time" value="$(arg sky_time)"/>
       <arg name="show_view" value="$(arg show_view)"/>
+      <arg name="use_rviz" value="$(arg use_rviz)"/>
       <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
       <arg name="chassis_port" value="$(arg chassis_port)"/>
       <arg name="imu_port" value="$(arg imu_port)"/>

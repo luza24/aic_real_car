@@ -2,6 +2,8 @@
 # The depth stream is a vendor-specific USB interface and is not handled
 # by this OpenCV based node.
 device: /dev/video0
+# Scan all /dev/video* nodes if the configured device cannot be opened.
+autodetect: true
 width: 1280
 height: 720
 fps: 30

@@ -48,6 +48,10 @@ class LidarNode(object):
         self.point_count = 0
         self.last_start = None
         self.scan_start_time = rospy.Time.now()
+        # Timestamp of the first packet of the revolution being accumulated.
+        # ROS/AMCL expect the scan stamp to be the start of the sweep, not
+        # the moment the revolution happens to be complete.
+        self._sweep_start = self.scan_start_time
 
         self.serial = hw.SerialDevice(self.port, self.baud)
         self._open_serial()
@@ -106,6 +110,21 @@ class LidarNode(object):
     def _handle_packet(self, start, _end, points):
         now = rospy.Time.now()
 
+        new_sweep = (self.last_start is not None and
+                     self.last_start > 300.0 and start < 60.0)
+        timed_out = ((now - self.scan_start_time).to_sec() >
+                     1.5 * self.scan_time)
+
+        if new_sweep or timed_out:
+            # Publish the completed revolution with its real start time,
+            # then begin a new sweep at this packet.
+            self._publish_scan(self._sweep_start)
+            self._sweep_start = now
+        elif self.last_start is None:
+            self._sweep_start = now
+
+        self.last_start = start
+
         for angle, distance, intensity in points:
             angle = (angle * self.angle_sign +
                      self.angle_offset) % 360.0
@@ -124,14 +143,6 @@ class LidarNode(object):
             self.intensities[index] = intensity
             self.point_count += 1
 
-        if (self.last_start is not None and
-                self.last_start > 300.0 and start < 60.0):
-            self._publish_scan(now)
-        elif (now - self.scan_start_time).to_sec() > 1.5 * self.scan_time:
-            self._publish_scan(now)
-
-        self.last_start = start
-
     def _masked(self, angle):
         if self.mask_start < 0.0 or self.mask_end < 0.0:
             return False
@@ -139,13 +150,13 @@ class LidarNode(object):
             return self.mask_start <= angle <= self.mask_end
         return angle >= self.mask_start or angle <= self.mask_end
 
-    def _publish_scan(self, now):
+    def _publish_scan(self, stamp):
         if self.point_count == 0:
-            self.scan_start_time = now
+            self.scan_start_time = rospy.Time.now()
             return
 
         scan = LaserScan()
-        scan.header.stamp = now
+        scan.header.stamp = stamp
         scan.header.frame_id = self.frame_id
         scan.angle_min = self.angle_min
         scan.angle_max = self.angle_max
@@ -163,7 +174,7 @@ class LidarNode(object):
         self.ranges = [float('inf')] * self.bins
         self.intensities = [0.0] * self.bins
         self.point_count = 0
-        self.scan_start_time = now
+        self.scan_start_time = rospy.Time.now()
 
     def _shutdown(self):
         self.serial.close()

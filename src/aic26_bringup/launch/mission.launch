@@ -12,7 +12,7 @@
   <arg name="use_rviz" default="true"/>
   <arg name="show_view" default="true"/>
   <!-- hardware arguments -->
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
@@ -21,16 +21,18 @@
   <arg name="gui" default="true"/>
   <arg name="light_fallback"
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
-  <!-- AMCL defaults follow the selected backend -->
-  <arg name="set_initial_pose"
-       default="$(eval 'false' if arg('backend') == 'real' else 'true')"/>
+  <!-- AMCL inputs; override the initial pose for the actual start pose. -->
+  <arg name="set_initial_pose" default="true"/>
+  <arg name="initial_pose_x" default="1.6"/>
+  <arg name="initial_pose_y" default="1.7"/>
+  <arg name="initial_pose_a" default="3.141592"/>
   <arg name="laser_min_range"
        default="$(eval '0.2' if arg('backend') == 'real' else '0.1')"/>
   <arg name="laser_max_range"
        default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
   <!-- start-up delays -->
-  <arg name="nav_delay" default="8.0"/>
-  <arg name="task_delay" default="10.0"/>
+  <arg name="nav_delay" default="15.0"/>
+  <arg name="task_delay" default="20.0"/>
 
   <include file="$(find aic26_bringup)/launch/backend.launch">
     <arg name="backend" value="$(arg backend)"/>
@@ -40,6 +42,9 @@
     <arg name="show_view" value="$(arg show_view)"/>
     <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
     <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="chassis_initial_x" value="$(arg initial_pose_x)"/>
+    <arg name="chassis_initial_y" value="$(arg initial_pose_y)"/>
+    <arg name="chassis_initial_yaw" value="$(arg initial_pose_a)"/>
     <arg name="imu_port" value="$(arg imu_port)"/>
     <arg name="lidar_port" value="$(arg lidar_port)"/>
     <arg name="camera_device" value="$(arg camera_device)"/>
@@ -51,6 +56,9 @@
     <arg name="use_rviz" value="$(arg use_rviz)"/>
     <arg name="node_delay" value="$(arg nav_delay)"/>
     <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+    <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+    <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+    <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
     <arg name="laser_min_range" value="$(arg laser_min_range)"/>
     <arg name="laser_max_range" value="$(arg laser_max_range)"/>
   </include>

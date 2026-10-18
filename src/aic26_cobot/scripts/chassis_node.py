@@ -53,26 +53,64 @@ class ChassisNode(object):
         self.max_angular = float(rospy.get_param('~max_angular', 1.5))
 
         self.use_imu_yaw = bool(
-            rospy.get_param('~use_imu_yaw', True))
+            rospy.get_param('~use_imu_yaw', False))
         self.imu_topic = rospy.get_param('~imu_topic', '/imu/data')
         self.imu_timeout = float(rospy.get_param('~imu_timeout', 0.2))
         self.imu_correction_gain = float(
             rospy.get_param('~imu_correction_gain', 0.1))
+        # Pull the magnetic yaw only a few times per second. Applying the
+        # correction at the full 20 Hz feedback rate is what makes RViz
+        # shake when the IMU heading is noisy.
+        self.imu_correction_rate = max(
+            0.0, float(rospy.get_param('~imu_correction_rate', 2.0)))
+        self.imu_correction_deadband = abs(float(
+            rospy.get_param('~imu_correction_deadband', 0.005)))
+        self.imu_correction_max_step = abs(float(
+            rospy.get_param('~imu_correction_max_step', 0.02)))
+        self.imu_yaw_filter_alpha = hw.clamp(
+            float(rospy.get_param('~imu_yaw_filter_alpha', 0.3)),
+            0.0, 1.0)
+
+        # The chassis sends one feedback frame at a fixed rate. The USB
+        # adapter delivers those frames in bursts, so integrate each frame
+        # with the nominal frame period instead of the wall-clock arrival
+        # interval (see hardware_common.feedback_dt).
+        self.feedback_rate = max(
+            1.0, float(rospy.get_param('~feedback_rate', 20.0)))
+        self.feedback_dt_max = max(
+            1.0 / self.feedback_rate,
+            float(rospy.get_param('~feedback_dt_max', 0.2)))
+        self.linear_deadband = abs(float(
+            rospy.get_param('~linear_deadband', 0.002)))
+        self.angular_deadband = abs(float(
+            rospy.get_param('~angular_deadband', 0.002)))
+
+        # Start odometry at the simulated spawn pose so the RViz TF tree and
+        # map->odom do not show a different origin on real hardware.
+        self.initial_x = float(rospy.get_param('~initial_x', 0.0))
+        self.initial_y = float(rospy.get_param('~initial_y', 0.0))
+        self.initial_yaw = hw.wrap_radians(
+            float(rospy.get_param('~initial_yaw', 0.0)))
 
         self._lock = threading.Lock()
-        self._pose = [0.0, 0.0, 0.0]
-        self._last_odom_time = rospy.Time.now()
+        self._pose = [self.initial_x, self.initial_y, self.initial_yaw]
+        self._last_odom_time = None
         self._last_feedback = (0.0, 0.0, 0.0)
         self._last_feedback_time = rospy.Time(0)
         self._cmd = (0.0, 0.0, 0.0)
         self._last_cmd_time = rospy.Time(0)
         self._enabled = True
         self._imu_yaw = None
+        self._imu_yaw_filtered = None
         self._imu_yaw_time = rospy.Time(0)
+        self._last_imu_correction = rospy.Time(0)
         self._imu_offset = None
 
         self.serial = hw.SerialDevice(self.port, self.baud)
         self._open_serial()
+        # Clear any velocity left over from a previous process before the first
+        # command timer tick.
+        self._stop_motors()
 
         self.vel_pub = rospy.Publisher(
             self.vel_topic, Twist, queue_size=10)
@@ -106,6 +144,8 @@ class ChassisNode(object):
         if self.serial.open():
             rospy.loginfo(
                 'chassis: opened %s at %d', self.port, self.baud)
+            # The STM32 may still hold the last frame from a previous process.
+            self._stop_motors()
             return True
         rospy.logwarn_throttle(
             10.0, 'chassis: cannot open %s: %s',
@@ -122,10 +162,20 @@ class ChassisNode(object):
         _, _, yaw = tf.transformations.euler_from_quaternion(
             (q.x, q.y, q.z, q.w))
         with self._lock:
+            if self._imu_yaw_filtered is None:
+                self._imu_yaw_filtered = yaw
+            else:
+                delta = hw.wrap_radians(yaw - self._imu_yaw_filtered)
+                self._imu_yaw_filtered = hw.wrap_radians(
+                    self._imu_yaw_filtered +
+                    self.imu_yaw_filter_alpha * delta)
             self._imu_yaw = yaw
             self._imu_yaw_time = rospy.Time.now()
             if self._imu_offset is None:
-                self._imu_offset = yaw
+                # Keep the odometry yaw at whatever pose the robot starts
+                # from. Subtracting the odom yaw is essential now that odom
+                # starts at pi (the Gazebo spawn yaw) instead of 0.
+                self._imu_offset = hw.imu_yaw_offset(yaw, self._pose[2])
 
     def _send_command(self, _event):
         now = rospy.Time.now()
@@ -165,7 +215,11 @@ class ChassisNode(object):
                 rospy.sleep(1.0)
                 continue
 
-            data = self.serial.read(64)
+            # Read exactly one 12-byte frame at a time, like the old
+            # car_bringup pubv.py.  Reading 64 bytes at once makes the
+            # reader integrate a whole burst with one dt for the first
+            # frame and ~0 for the rest, which shows up as pose jumps.
+            data = self.serial.read(hw.CHASSIS_FEEDBACK_SIZE)
             if not data:
                 continue
             buffer.extend(data)
@@ -193,18 +247,38 @@ class ChassisNode(object):
         wz *= self.angular_scale
         now = rospy.Time.now()
 
+        # Ignore encoder quantization / electrical noise at standstill.
+        if abs(vx) < self.linear_deadband:
+            vx = 0.0
+        if abs(vy) < self.linear_deadband:
+            vy = 0.0
+        if abs(wz) < self.angular_deadband:
+            wz = 0.0
+
         with self._lock:
-            dt = (now - self._last_odom_time).to_sec()
-            dt = hw.clamp(dt, 0.0, 0.5)
+            measured = None
+            if self._last_odom_time is not None:
+                measured = (now - self._last_odom_time).to_sec()
+            self._last_odom_time = now
+            dt = hw.feedback_dt(
+                measured, 1.0 / self.feedback_rate, self.feedback_dt_max)
+
             yaw = self._pose[2] + wz * dt
 
-            if self.use_imu_yaw and self._imu_yaw is not None:
+            if self.use_imu_yaw and self._imu_yaw_filtered is not None:
                 age = (now - self._imu_yaw_time).to_sec()
-                if age <= self.imu_timeout:
+                due = (self.imu_correction_rate <= 0.0 or
+                       (now - self._last_imu_correction).to_sec() >=
+                       1.0 / self.imu_correction_rate)
+                if age <= self.imu_timeout and due:
                     target = hw.wrap_radians(
-                        self._imu_yaw - self._imu_offset)
+                        self._imu_yaw_filtered - self._imu_offset)
                     error = hw.wrap_radians(target - yaw)
-                    yaw += self.imu_correction_gain * error
+                    yaw += hw.imu_yaw_step(
+                        error, self.imu_correction_gain,
+                        self.imu_correction_deadband,
+                        self.imu_correction_max_step)
+                    self._last_imu_correction = now
 
             yaw = hw.wrap_radians(yaw)
             self._pose[0] += (
@@ -212,7 +286,6 @@ class ChassisNode(object):
             self._pose[1] += (
                 vx * math.sin(yaw) + vy * math.cos(yaw)) * dt
             self._pose[2] = yaw
-            self._last_odom_time = now
             self._last_feedback = (vx, vy, wz)
             self._last_feedback_time = now
 
@@ -273,7 +346,7 @@ class ChassisNode(object):
             self._cmd = (0.0, 0.0, 0.0)
             self._last_cmd_time = rospy.Time.now()
         if not req.data:
-            self._stop_motors()
+            self._stop_burst()
         message = 'enabled' if req.data else 'disabled'
         rospy.loginfo('chassis: motors %s', message)
         return SetBoolResponse(success=True, message=message)
@@ -281,22 +354,37 @@ class ChassisNode(object):
     def _reset_cb(self, _req):
         now = rospy.Time.now()
         with self._lock:
-            self._pose = [0.0, 0.0, 0.0]
+            self._pose = [self.initial_x, self.initial_y, self.initial_yaw]
             self._last_odom_time = now
             self._last_feedback = (0.0, 0.0, 0.0)
             self._last_feedback_time = now
-            self._imu_offset = self._imu_yaw
-        rospy.loginfo('chassis: odometry reset')
+            imu_yaw = (
+                self._imu_yaw_filtered
+                if self._imu_yaw_filtered is not None else self._imu_yaw)
+            self._imu_offset = (
+                hw.imu_yaw_offset(imu_yaw, self.initial_yaw)
+                if imu_yaw is not None else None)
+            self._last_imu_correction = now
+        rospy.loginfo(
+            'chassis: odometry reset to (%.3f, %.3f, %.3f)',
+            self.initial_x, self.initial_y, self.initial_yaw)
         return EmptyResponse()
 
     def _stop_motors(self):
         if self.serial.is_open:
             self.serial.write(hw.encode_chassis_command(0.0, 0.0, 0.0))
 
-    def _shutdown(self):
-        for _ in range(5):
+    def _stop_burst(self, count=20):
+        """Send a short burst of zero frames (firmware/UART may drop one)."""
+        for _ in range(count):
             self._stop_motors()
             time.sleep(0.01)
+
+    def _shutdown(self):
+        with self._lock:
+            self._enabled = False
+            self._cmd = (0.0, 0.0, 0.0)
+        self._stop_burst()
         self.serial.close()
         rospy.loginfo('chassis: stopped')
 

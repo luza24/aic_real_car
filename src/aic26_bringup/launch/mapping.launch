@@ -9,12 +9,45 @@
   <arg name="day_night" default="day"/>
   <arg name="sky_time" default=""/>
   <arg name="show_view" default="true"/>
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_rviz" default="true"/>
+  <!-- camera_view stays enabled.  Mapping uses a lighter 640x480@15 camera
+       stream so the viewer does not steal CPU from gmapping; mission/demo
+       keep the default 1280x720@30 for image recognition. -->
+  <arg name="camera" default="true"/>
+  <arg name="camera_width" default="640"/>
+  <arg name="camera_height" default="480"/>
+  <arg name="camera_fps" default="15"/>
+  <arg name="camera_view_width" default="640"/>
+  <arg name="camera_view_height" default="480"/>
+  <arg name="max_urange"
+       default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
+  <arg name="gmapping_particles"
+       default="$(eval '150' if arg('backend') == 'real' else '80')"/>
+  <!-- Fewer, larger scan-matching updates on real hardware. The default
+       0.05 m / 0.05 rad threshold makes gmapping publish a new map->odom
+       correction almost every scan, which is visible as a shaking robot
+       in RViz. 0.1 m / 0.1 rad halves the correction rate. -->
+  <arg name="gmapping_linear_update"
+       default="$(eval '0.1' if arg('backend') == 'real' else '0.05')"/>
+  <arg name="gmapping_angular_update"
+       default="$(eval '0.1' if arg('backend') == 'real' else '0.05')"/>
+  <arg name="gmapping_map_update_interval"
+       default="$(eval '1.0' if arg('backend') == 'real' else '0.5')"/>
+  <!-- Keep the gmapping map frame identical to the navigation map. The
+       chassis starts at (1.6, 1.7, pi), so gmapping already anchors the
+       robot at the simulated spawn pose instead of (0, 0). -->
+  <arg name="start_x" default="1.6"/>
+  <arg name="start_y" default="1.7"/>
+  <arg name="start_yaw" default="3.141592"/>
+  <!-- The chassis node limits IMU yaw corrections to a few Hz and filters
+       them, so mapping uses wheel odometry + scan matching by default.
+       Pass use_imu_yaw:=true to enable the IMU heading correction. -->
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
   <arg name="camera_device" default="/dev/video0"/>
-  <arg name="nav_delay" default="8.0"/>
+  <arg name="nav_delay" default="15.0"/>
 
   <include file="$(find aic26_bringup)/launch/backend.launch">
     <arg name="backend" value="$(arg backend)"/>
@@ -24,13 +57,29 @@
     <arg name="show_view" value="$(arg show_view)"/>
     <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
     <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="chassis_initial_x" value="$(arg start_x)"/>
+    <arg name="chassis_initial_y" value="$(arg start_y)"/>
+    <arg name="chassis_initial_yaw" value="$(arg start_yaw)"/>
     <arg name="imu_port" value="$(arg imu_port)"/>
     <arg name="lidar_port" value="$(arg lidar_port)"/>
     <arg name="camera_device" value="$(arg camera_device)"/>
+    <arg name="camera" value="$(arg camera)"/>
+    <arg name="camera_width" value="$(arg camera_width)"/>
+    <arg name="camera_height" value="$(arg camera_height)"/>
+    <arg name="camera_fps" value="$(arg camera_fps)"/>
+    <arg name="camera_view_width" value="$(arg camera_view_width)"/>
+    <arg name="camera_view_height" value="$(arg camera_view_height)"/>
   </include>
 
   <include file="$(find aic26_slam)/launch/gmapping.launch">
     <arg name="node_delay" value="$(arg nav_delay)"/>
+    <arg name="max_urange" value="$(arg max_urange)"/>
+    <arg name="gmapping_particles" value="$(arg gmapping_particles)"/>
+    <arg name="linear_update" value="$(arg gmapping_linear_update)"/>
+    <arg name="angular_update" value="$(arg gmapping_angular_update)"/>
+    <arg name="map_update_interval"
+         value="$(arg gmapping_map_update_interval)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
   </include>
 
 </launch>

@@ -11,12 +11,21 @@ min_range: 0.2
 max_range: 4.0
 scan_rate: 10.0
 
-# Mounting correction. angle_sign -1 mirrors the scan, angle_offset_deg
-# rotates it. Keep 0/1 for the stock mounting.
+# Mounting correction. The N10_P raw angle increases clockwise while ROS
+# expects counter-clockwise, so angle_sign must be -1.  The laser frame is
+# aligned with base_link (yaw 0) just like the simulation.  The sensor zero
+# mark is handled here:
+#   0.0   -> base bearing = -raw   (front object at 0; matches the real car)
+#   180.0 -> rotated by 180 degrees
+# Keep 0.0: a value of 180 makes gmapping see the robot driving backwards,
+# which produces a 180 degree map->odom correction and visible jitter.
 angle_offset_deg: 0.0
-angle_sign: 1
+angle_sign: -1
 
-# The lidar on the car has a 90..270 degree blind sector. Set both values
-# to -1 to publish the complete circle instead.
-mask_start_deg: 90.0
-mask_end_deg: 270.0
+# The N10_P is a full 360 degree lidar.  The old car_bringup stack tried to
+# mask 90..270 but its parameters were double-namespaced and never applied,
+# so the real robot always ran with the full circle.  Keep it that way: a
+# half circle is not enough for gmapping/AMCL.  Set both values to a valid
+# range only if the mechanical mounting really blocks a sector.
+mask_start_deg: -1.0
+mask_end_deg: -1.0

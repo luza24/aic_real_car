@@ -62,8 +62,8 @@ generated or local-only and are ignored by Git.
   (`python3-opencv` from ROS is recommended).
 - `python3-tk` for the Tk panels and `pillow` for the result viewer image
   panel (the panel is disabled without Pillow).
-- `onnxruntime` for the int8 models and `easyocr` for license plate
-  recognition.
+- `openvino` (preferred on the Intel N100) or `onnxruntime` for the int8
+  models, and `easyocr` for license plate recognition.
 - `python3-serial` for the `aic26_cobot` hardware drivers (real robot only).
 
 Install the declared ROS dependencies from the workspace root:
@@ -75,7 +75,11 @@ rosdep install --from-paths src --ignore-src -r -y
 Install the optional Python runtime dependencies:
 
 ```bash
-python3 -m pip install --user onnxruntime easyocr pillow
+# preferred on the Intel CPU: ~10 FPS full pipeline on the N100
+python3 -m pip install --user openvino easyocr pillow
+
+# portable fallback: ~3-4 FPS on the same machine
+# python3 -m pip install --user onnxruntime
 ```
 
 `easyocr` pulls in PyTorch (a large download) and fetches its detector and
@@ -153,6 +157,12 @@ settings (`sky_step`, `until_done`) live in
 `src/aic26_bringup/launch/capture.launch`. On the hardware backend, `sky_step`
 defaults to `0.0` because there is no Gazebo sky to advance.
 
+In `mapping` mode the chassis odometry starts at `start_x/y/yaw` (default
+`1.6 / 1.7 / pi`) instead of `(0, 0, 0)`. GMAPPING therefore builds the map
+with the robot at the same coordinates as the simulated spawn/navigation map,
+so the car does not jump from `(0, 0)` to `(1.6, 1.7)` when switching between
+mapping and mission mode.
+
 ## Launch arguments
 
 | Argument | Default | Meaning |
@@ -163,22 +173,27 @@ defaults to `0.0` because there is no Gazebo sky to advance.
 | `day_night` | `day` | simulation sky: `day` or `night` |
 | `sky_time` | empty | simulation time of day in hours, overrides `day_night` |
 | `map_file` | `aic26_slam/maps/world.yaml` | map for AMCL / map_server (not used in mapping mode) |
-| `use_rviz` | `true` | start RViz with the navigation display (mapping always starts RViz) |
+| `use_rviz` | `true` | start RViz with the navigation display (also honored in mapping) |
 | `show_view` | `true` | start the simulation camera viewer |
-| `nav_delay` | `8.0` | seconds before navigation (or gmapping) starts |
-| `task_delay` | `10.0` | seconds before the mission / task nodes start (unused in mapping mode) |
+| `nav_delay` | `15.0` | seconds before navigation (or gmapping) starts |
+| `task_delay` | `20.0` | seconds before the mission / task nodes start (unused in mapping mode) |
+| `set_initial_pose` | `true` | initialize AMCL at `initial_pose_*` |
+| `initial_pose_x` | `1.6` | initial map x |
+| `initial_pose_y` | `1.7` | initial map y |
+| `initial_pose_a` | `3.141592` | initial map yaw in radians |
 
 The delays are applied as a per-node start-up wait
 (`launch-prefix="bash -c 'sleep <delay>; $0 $@'"`); set either to `0` to
 disable the wait. This lets the backend come up before navigation, and
-navigation before the mission nodes.
+navigation before the mission nodes. The defaults are deliberately generous
+for slower machines; on a fast machine use e.g. `nav_delay:=5 task_delay:=10`.
 
 `sim`, `day_night`, `sky_time` and `show_view` only apply to
 `backend:=sim`. `backend:=real` adds these arguments:
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `use_imu_yaw` | `true` | fuse the WIT yaw into the chassis odometry |
+| `use_imu_yaw` | `false` | fuse the WIT yaw into the chassis odometry (off by default; magnetic yaw is noisy indoors) |
 | `chassis_port` | `/dev/carserial` | STM32 chassis serial device |
 | `imu_port` | `/dev/imu` | WIT IMU serial device |
 | `lidar_port` | `/dev/lslidar` | N10_P lidar serial device |
@@ -223,9 +238,27 @@ navigation before the mission nodes.
 
 The real-robot backend in `aic26_cobot` uses the same map and frame names:
 `odom -> base_footprint -> base_link -> laser/camera/imu_link`. Its lidar has a
-4 m range and a 90..270 degree masked sector, the camera publishes 1280x720 RGB,
-and AMCL starts without a preset pose (set it once in RViz). See
+4 m range and publishes the full 360 degree scan (the mask is disabled), the
+camera publishes 1280x720 RGB, and AMCL starts at the configured initial pose
+(`initial_pose_x/y/a`). The chassis odometry starts at the same pose, so
+`map -> odom` stays near identity and the real robot appears at the same map
+coordinates as the simulated spawn pose `(1.6, 1.7, pi)`. See
 `src/aic26_cobot/README.md` for the device ports and udev rules.
+
+The chassis feedback is integrated at the measured 20 Hz frame rate rather
+than the USB arrival time (the adapter delivers frames in bursts), and IMU yaw
+corrections are filtered and limited to `imu_correction_rate` updates per
+second. The IMU offset is relative to the configured start yaw, so enabling
+`use_imu_yaw:=true` does not rotate the robot back to yaw zero. This keeps the
+odometry TF smooth, which in turn stops GMAPPING/AMCL from publishing
+high-frequency pose corrections that look like a shaking robot in RViz.
+
+AMCL is tuned for the N100 in `aic26_navigation/config/amcl_params.yaml`:
+300-1200 particles, 45 laser beams, `kld_err: 0.08` and a 2 Hz particle-cloud
+publish rate. In a forced-update benchmark this reduced AMCL CPU by about
+25-30% while the map pose stayed within a few millimetres of the start pose.
+The laser model, resampling interval and `update_min_*` thresholds are
+unchanged.
 
 ## Mission configuration
 
@@ -268,10 +301,17 @@ The detectors run int8 ONNX models included in
 
 Notes:
 
-- `onnxruntime` is the primary backend. `cv2.dnn` is kept as a fallback but
-  cannot execute the int8 quantisation used by these models.
+- OpenVINO is the primary backend (CPU, about 10 FPS for the full
+  letterbox + inference + decode pipeline on the N100). `onnxruntime` is the
+  fallback (about 3-4 FPS). `cv2.dnn` is kept for float models only; it cannot
+  execute the int8 quantisation used here.
+- There is no usable GPU on the car PC: the N100 has no NVIDIA GPU and its
+  Intel iGPU has no OpenCL runtime, so OpenVINO runs on the CPU. Set
+  `AIC26_OV_THREADS` to change the OpenVINO thread count (default 2).
 - A detector runs only while its target is requested on `/perception/detect`
-  (`traffic_light`, `people` or `car`). Any other message stops it.
+  (`traffic_light`, `people` or `car`). Any other message stops it. While
+  active it processes the latest frame at `~max_rate` (default 5 Hz), so the
+  30 FPS camera stream does not build a queue.
 - People are counted once per class within a trigger, so repeated boxes of the
   same person do not inflate the count.
 - The car detector crops a fixed plate region from the car box
@@ -314,6 +354,21 @@ names. The table lists both producers where they differ.
 
 ## GUI over SSH and HiDPI displays
 
+If the robot model in RViz stays still while the map/costmaps move, set
+**Global Options → Fixed Frame** to `map` (not `base_footprint`, `base_link` or
+`odom`). The supplied `navigation.rviz` already uses `map`. Also check:
+
+```bash
+rosparam get /use_sim_time                 # must be false on real hardware
+rosrun tf tf_echo map base_footprint       # robot pose in the map
+rosrun tf tf_echo odom base_footprint      # wheel-odometry pose
+rostopic echo -n1 /odom/pose/pose/position
+```
+
+If `odom -> base_footprint` does not change while the robot moves, the chassis
+odometry/encoder feedback is not updating. If `map -> odom` changes but the
+robot model does not, fix the RViz fixed frame first.
+
 The Tk panels (`day_night.py`, the result viewer) and the camera viewer are
 sized in pixels, so they keep their size on a local screen and over
 `ssh -X`. Scale them with `AIC26_GUI_SCALE` (or the `~gui_scale` parameter):
@@ -328,6 +383,12 @@ and `view_height` arguments (default 640x360). It is started for both
 `image_view` node is not used: it creates its window at OpenCV's 320x240
 default and resizes it only after mapping, which an X11-forwarded display
 ignores.
+
+`camera_view` is CPU-rendered here: OpenCV 4.2 on this machine is built
+without OpenGL and the N100 has no usable GPU, so an OpenGL/RViz viewer would
+still fall back to llvmpipe. To keep it cheap in mapping, the camera runs at
+640x480@15 and the viewer converts at 15 Hz; mission/demo keep the full
+1280x720@30 stream for image recognition.
 
 The result viewer needs `tkinter`; its image panel additionally needs Pillow
 and is disabled with a warning when Pillow is unavailable.
@@ -347,6 +408,10 @@ rosrun aic26_gazebo traffic_controller.py
 
 # camera viewer with pixel-sized window
 rosrun aic26_utils camera_view.py
+
+# emergency stop: zero velocity frames, no ROS master needed
+rosrun aic26_cobot emergency_stop.py
+python3 src/aic26_cobot/scripts/emergency_stop.py --port /dev/carserial
 ```
 
 ## Running the steps separately
@@ -366,7 +431,8 @@ roslaunch aic26_navigation navigation.launch
 
 # localization and navigation on top of the real hardware backend
 roslaunch aic26_navigation navigation.launch \
-  set_initial_pose:=false laser_min_range:=0.2 laser_max_range:=4.0
+  laser_min_range:=0.2 laser_max_range:=4.0 \
+  initial_pose_x:=1.6 initial_pose_y:=1.7 initial_pose_a:=3.141592
 
 # mission on top of a running navigation stack
 roslaunch aic26_decision mission.launch
@@ -403,8 +469,8 @@ roslaunch aic26_decision capture.launch
 - `catkin_make` cannot find `teb_local_planner` or `global_planner`: install
   the ROS dependencies with
   `rosdep install --from-paths src --ignore-src -r -y`.
-- The detectors start but never return results: install `onnxruntime`.
-  `cv2.dnn` cannot run the int8 models.
+- The detectors start but never return results: install `openvino`
+  (preferred) or `onnxruntime`. `cv2.dnn` cannot run the int8 models.
 - The car detector returns an empty plate: install `easyocr` and allow the
   first run to download its weights, or populate `~/.EasyOCR` in advance.
 - No GUI appears over SSH: use `ssh -X`, or disable the windows with
@@ -413,9 +479,28 @@ roslaunch aic26_decision capture.launch
 - A hardware device cannot be opened: check `python3-serial`, the udev rules
   and the user's membership in the `dialout` group. Use
   `roslaunch aic26_cobot hardware.launch chassis_port:=...` to test a path.
-- AMCL does not localize on hardware: `mode:=mission backend:=real` starts it
-  with `set_initial_pose:=false`; set the pose once in RViz. The real lidar
+- The camera warning `cannot open /dev/video0`: check
+  `v4l2-ctl --list-devices` and `ls /dev/video*`. If no video node exists, the
+  USB link is the problem (unpowered hub, low-speed enumeration, or power);
+  connect the camera directly to a USB 3 port. The camera node scans
+  `/dev/video*` and retries MJPG/YUYV, so a different index is handled
+  automatically. Set `camera_device:=/dev/videoN` to force one.
+- The chassis keeps moving after roslaunch exits: run
+  `rosrun aic26_cobot emergency_stop.py`, or
+  `python3 src/aic26_cobot/scripts/emergency_stop.py` when ROS is down, then
+  cut motor power if it still turns. The STM32 firmware needs its own command
+  timeout.
+- AMCL does not localize on hardware: make sure `initial_pose_x/y/a` matches the
+  robot's physical start pose. The default is `(1.6, 1.7, pi)`. Set
+  `set_initial_pose:=false` to initialize manually in RViz. The real lidar
   range is 4 m, so keep `laser_max_range:=4.0`.
+- The robot still shakes in RViz on real hardware: check that the chassis
+  `initial_x/y/yaw` match the AMCL `initial_pose_*` (the mode launch files pass
+  them through automatically). The real AMCL config uses small
+  `initial_cov_*` values and `update_min_d/a: 0.10` so the first scan does not
+  pull the pose away from the spawn point and corrections are not published on
+  every scan. Mapping uses larger GMAPPING `linearUpdate/angularUpdate` values
+  for the same reason.
 - Traffic lights stay dark in simulation: gzclient must finish loading the
   simulation before the visual plugin can apply materials. The controller waits
   `~startup_delay` (6 s in `sim.launch`) before starting.

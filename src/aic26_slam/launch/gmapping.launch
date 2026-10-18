@@ -4,6 +4,16 @@
   <!-- start-up delay (s) applied to the mapping / teleop nodes, so the caller
        can wait for the simulation to come up first. 0 disables the wait. -->
   <arg name="node_delay" default="0.0"/>
+  <!-- real lidar is 4 m; the simulation laser is 12 m -->
+  <arg name="max_urange" default="12.0"/>
+  <!-- 150 particles for real odometry, 80 is enough for perfect Gazebo odom -->
+  <arg name="gmapping_particles" default="80"/>
+  <!-- How far the robot must move before gmapping runs another scan-match
+       update. Larger values reduce the map->odom correction rate. -->
+  <arg name="linear_update" default="0.05"/>
+  <arg name="angular_update" default="0.05"/>
+  <arg name="map_update_interval" default="0.5"/>
+  <arg name="use_rviz" default="true"/>
 
   <node pkg="gmapping" type="slam_gmapping" name="slam_gmapping" output="screen"
         launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
@@ -13,7 +23,29 @@
     <param name="map_frame"    value="map"/>
     <param name="scan_topic"   value="/scan"/>
 
-    <param name="particles"    value="80"/>
+    <!-- These values are copied from the previously working real-car
+         car_bringup stack.  The gmapping defaults (sigma 0.05, srr/srt
+         0.1/0.2, particles 80, minimumScore 0, temporalUpdate 1.0) trust
+         the real encoder/IMU odometry much less and make the robot pose
+         jitter in RViz, which smears the map. -->
+    <param name="map_update_interval" value="$(arg map_update_interval)"/>
+    <param name="maxUrange"          value="$(arg max_urange)"/>
+    <param name="sigma"              value="0.02"/>
+    <param name="kernelSize"         value="1.0"/>
+    <param name="lstep"              value="0.05"/>
+    <param name="astep"              value="0.05"/>
+    <param name="iterations"         value="15"/>
+    <param name="lsigma"             value="0.075"/>
+    <param name="ogain"              value="3.0"/>
+    <param name="lskip"              value="0"/>
+    <param name="minimumScore"       value="4.0"/>
+
+    <param name="srr" value="0.02"/>
+    <param name="srt" value="0.05"/>
+    <param name="str" value="0.02"/>
+    <param name="stt" value="0.05"/>
+
+    <param name="particles"    value="$(arg gmapping_particles)"/>
     <param name="delta"        value="0.05"/>
 
     <param name="xmin" value="-6"/>
@@ -21,21 +53,29 @@
     <param name="xmax" value="6"/>
     <param name="ymax" value="6"/>
 
-    <param name="linearUpdate"  value="0.10"/>
-    <param name="angularUpdate" value="0.10"/>
-    <param name="temporalUpdate" value="1.0"/>
+    <param name="linearUpdate"  value="$(arg linear_update)"/>
+    <param name="angularUpdate" value="$(arg angular_update)"/>
+    <param name="temporalUpdate" value="-1.0"/>
     <param name="resampleThreshold" value="0.5"/>
+
+    <param name="llsamplerange" value="0.01"/>
+    <param name="llsamplestep"  value="0.01"/>
+    <param name="lasamplerange" value="0.005"/>
+    <param name="lasamplestep"  value="0.005"/>
 
   </node>
 
-  <node name="rviz" pkg="rviz" type="rviz"
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
         args="-d $(find aic26_slam)/rviz/gmapping.rviz"/>
 
   <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py"
         name="teleop" output="screen"
-        launch-prefix="bash -c 'sleep $(arg node_delay); xterm -e $0 $@'">
+        launch-prefix="bash -c 'xterm -e $0 $@'">
     <param name="speed" value="0.1"/>
     <param name="turn"  value="0.5"/>
+    <!-- Keep publishing the latched velocity at 10 Hz, matching the sim
+         behaviour (press once and the car keeps moving). -->
+    <param name="repeat_rate" value="10.0"/>
   </node>
 
 </launch>

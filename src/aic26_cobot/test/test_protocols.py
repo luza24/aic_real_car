@@ -30,7 +30,7 @@ class ChassisProtocolTest(unittest.TestCase):
 
     def test_feedback_round_trip(self):
         payload = struct.pack('<hhh', 120, -80, 45)
-        frame = bytearray(b'\xaa\xbb\x0a\x12' + payload + b'\x00\x00')
+        frame = bytearray(b'\xaa\xbb\x0a\x0a' + payload + b'\x00\x00')
         frame[11] = sum(frame[2:10]) & 0xff
         decoded = hw.decode_chassis_feedback(bytes(frame))
         self.assertAlmostEqual(decoded[0], 0.12)
@@ -39,7 +39,7 @@ class ChassisProtocolTest(unittest.TestCase):
 
     def test_feedback_bad_checksum(self):
         payload = struct.pack('<hhh', 1, 2, 3)
-        frame = bytearray(b'\xaa\xbb\x0a\x12' + payload + b'\x00\x00')
+        frame = bytearray(b'\xaa\xbb\x0a\x0a' + payload + b'\x00\x00')
         frame[11] = 0
         self.assertIsNone(hw.decode_chassis_feedback(bytes(frame)))
 
@@ -48,6 +48,44 @@ class ChassisProtocolTest(unittest.TestCase):
         frame = bytearray(b'\xaa\xbb\x00\x00' + payload + b'\x00\x00')
         frame[11] = sum(frame[2:10]) & 0xff
         self.assertIsNone(hw.decode_chassis_feedback(bytes(frame)))
+
+    def test_real_feedback_frame(self):
+        # Captured from the STM32: feedback header is 0A 0A, not 0A 12.
+        frame = bytes.fromhex('aabb0a0a0000000000000014')
+        self.assertEqual(hw.decode_chassis_feedback(frame),
+                         (0.0, 0.0, 0.0))
+
+
+class ChassisTimingTest(unittest.TestCase):
+
+    def test_feedback_dt_uses_nominal_for_bursts(self):
+        # The serial adapter delivers a 20 Hz stream in bursts.
+        self.assertAlmostEqual(hw.feedback_dt(0.00002, 0.05, 0.2), 0.05)
+        self.assertAlmostEqual(hw.feedback_dt(0.049, 0.05, 0.2), 0.05)
+        self.assertAlmostEqual(hw.feedback_dt(None, 0.05, 0.2), 0.05)
+
+    def test_feedback_dt_keeps_dropped_frames(self):
+        # A 0.118 s gap is still a delayed frame in the same burst, not a
+        # dropped sample: keep the nominal period for smooth integration.
+        self.assertAlmostEqual(hw.feedback_dt(0.118, 0.05, 0.2), 0.05)
+        self.assertAlmostEqual(hw.feedback_dt(0.20, 0.05, 0.2), 0.20)
+        self.assertAlmostEqual(hw.feedback_dt(1.0, 0.05, 0.2), 0.2)
+
+    def test_imu_yaw_step_deadband_and_limit(self):
+        self.assertEqual(hw.imu_yaw_step(0.001, 0.1, 0.005, 0.02), 0.0)
+        self.assertAlmostEqual(hw.imu_yaw_step(0.1, 0.1, 0.005, 0.02), 0.01)
+        self.assertAlmostEqual(hw.imu_yaw_step(1.0, 0.1, 0.005, 0.02), 0.02)
+        self.assertAlmostEqual(hw.imu_yaw_step(-1.0, 0.1, 0.005, 0.02),
+                               -0.02)
+
+    def test_imu_offset_preserves_start_yaw(self):
+        odom_yaw = hw.wrap_radians(3.141592)
+        offset = hw.imu_yaw_offset(-0.00489, odom_yaw)
+        self.assertAlmostEqual(
+            hw.wrap_radians(-0.00489 - offset), odom_yaw, places=9)
+        offset = hw.imu_yaw_offset(3.0, -3.0)
+        self.assertAlmostEqual(hw.wrap_radians(3.0 - offset), -3.0,
+                               places=9)
 
 
 class WitProtocolTest(unittest.TestCase):

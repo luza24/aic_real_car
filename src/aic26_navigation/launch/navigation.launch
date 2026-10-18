@@ -7,8 +7,8 @@
        wait for the simulation to come up before the navigation stack starts.
        0 disables the wait. -->
   <arg name="node_delay" default="0.0"/>
-  <!-- AMCL inputs. The hardware launch overrides these for the real lidar and
-       leaves the initial pose unset so it can be set in RViz. -->
+  <!-- AMCL inputs. The caller can override the initial pose; the mode launch
+       files default it to the map start pose for both backends. -->
   <arg name="set_initial_pose" default="true"/>
   <arg name="initial_pose_x" default="1.6"/>
   <arg name="initial_pose_y" default="1.7"/>

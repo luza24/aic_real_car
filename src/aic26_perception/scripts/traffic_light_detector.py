@@ -69,6 +69,8 @@ class TrafficLightDetector(object):
         self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
+        self.max_rate = float(rospy.get_param('~max_rate', 5.0))
+        self.last_infer = rospy.Time(0)
 
         # model_name reported to the mission controller; must match the light
         # model in the world file, e.g. traffic_light_1 / traffic_light_2
@@ -89,7 +91,7 @@ class TrafficLightDetector(object):
             Image, queue_size=1)
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
-                         Image, self.on_image)
+                         Image, self.on_image, queue_size=1)
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
@@ -130,6 +132,7 @@ class TrafficLightDetector(object):
         req = msg.data.strip().lower()
         if req == 'traffic_light':
             self.active = True
+            self.last_infer = rospy.Time(0)
             rospy.loginfo("traffic light detection restarted")
         else:
             self.active = False
@@ -141,6 +144,11 @@ class TrafficLightDetector(object):
             return
         if not self.net.ready:
             return
+        now = rospy.Time.now()
+        if (self.max_rate > 0.0 and
+                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
+            return
+        self.last_infer = now
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)

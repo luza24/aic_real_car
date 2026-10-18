@@ -2,6 +2,12 @@
 <launch>
 
   <node name="teleop" pkg="teleop_twist_keyboard"
-        type="teleop_twist_keyboard.py" output="screen"/>
+        type="teleop_twist_keyboard.py" output="screen">
+    <!-- Republish the last key at 10 Hz.  Without this the upstream node
+         publishes only once per key press; the Gazebo backend keeps the
+         last command forever, but the real chassis stops after cmd_timeout
+         unless new frames keep arriving. -->
+    <param name="repeat_rate" value="10.0"/>
+  </node>
 
 </launch>

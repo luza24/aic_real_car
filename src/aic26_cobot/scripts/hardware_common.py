@@ -16,8 +16,10 @@ except ImportError:  # pragma: no cover - exercised on a bare Python
     serial = None
 
 CHASSIS_HEADER = b'\xaa\xbb'
+# Command: AA BB 0A 12 02 + x,y,yaw + checksum
 CHASSIS_COMMAND = b'\xaa\xbb\x0a\x12\x02'
-CHASSIS_FEEDBACK_HEADER = b'\xaa\xbb\x0a\x12'
+# Feedback: AA BB 0A 0A + x,y,yaw + filler + checksum
+CHASSIS_FEEDBACK_HEADER = b'\xaa\xbb\x0a\x0a'
 CHASSIS_FEEDBACK_SIZE = 12
 LIDAR_HEADER = b'\xa5\x5a'
 LIDAR_PACKET_SIZE = 108
@@ -29,6 +31,49 @@ WIT_FRAME_SIZE = 11
 def clamp(value, low, high):
     """Return value limited to the inclusive [low, high] interval."""
     return max(low, min(high, value))
+
+
+def feedback_dt(measured, nominal, max_dt):
+    """Return the integration interval for one chassis feedback frame.
+
+    The STM32 sends a 12-byte frame at a fixed rate, but the USB/serial
+    adapter delivers them in bursts: measured arrival intervals alternate
+    between almost zero and about twice the frame period. Using the wall
+    clock interval for every frame therefore integrates several samples
+    with dt ~= 0 and then one sample with the whole gap, which shows up as
+    pose jumps in RViz.
+
+    Use the nominal frame period for normal arrivals and only fall back to
+    the measured interval when frames were actually dropped.
+    """
+    nominal = max(1e-3, float(nominal))
+    if measured is None or measured <= 0.0:
+        return nominal
+    if measured > 2.5 * nominal:
+        return min(float(measured), max(nominal, float(max_dt)))
+    return nominal
+
+
+def imu_yaw_offset(imu_yaw, odom_yaw):
+    """Return the offset that maps the IMU yaw onto the odometry yaw.
+
+    The odometry may start at a non-zero yaw (the Gazebo spawn yaw pi).
+    Subtracting the odom yaw keeps ``imu_yaw - offset == odom_yaw`` at the
+    start, so enabling the IMU does not slowly rotate the robot back to 0.
+    """
+    return wrap_radians(imu_yaw - odom_yaw)
+
+
+def imu_yaw_step(error, gain, deadband, max_step):
+    """Return a limited yaw correction for the IMU/odometry fusion.
+
+    Small errors are ignored (deadband) and one correction is clamped so
+    that a noisy magnetic heading cannot move the odometry TF in a single
+    high-frequency step.
+    """
+    if abs(error) <= abs(deadband):
+        return 0.0
+    return clamp(gain * error, -abs(max_step), abs(max_step))
 
 
 def wrap_degrees(angle):
@@ -213,23 +258,27 @@ class SerialDevice(object):
             self._serial = None
 
     def read(self, size=1):
-        if not self.is_open:
+        # Keep a local reference: close() may set self._serial to None from
+        # another thread between the is_open check and the read.
+        device = self._serial
+        if device is None or not device.is_open:
             return b''
         try:
-            return self._serial.read(size)
-        except (serial.SerialException, OSError) as exc:
+            return device.read(size)
+        except (serial.SerialException, OSError, TypeError) as exc:
             self.last_error = str(exc)
             self.close()
             return b''
 
     def write(self, data):
-        if not self.is_open:
+        device = self._serial
+        if device is None or not device.is_open:
             return False
         try:
-            self._serial.write(data)
-            self._serial.flush()
+            device.write(data)
+            device.flush()
             return True
-        except (serial.SerialException, OSError) as exc:
+        except (serial.SerialException, OSError, TypeError) as exc:
             self.last_error = str(exc)
             self.close()
             return False

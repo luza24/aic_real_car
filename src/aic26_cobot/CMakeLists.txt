@@ -30,6 +30,7 @@ catkin_install_python(PROGRAMS
   scripts/lidar_node.py
   scripts/camera_node.py
   scripts/hardware_status_node.py
+  scripts/emergency_stop.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

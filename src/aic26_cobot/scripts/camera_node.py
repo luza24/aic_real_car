@@ -6,7 +6,9 @@ depth stream is a vendor-specific USB interface and is intentionally not
 handled here; the AIC26 perception stack only uses the colour image.
 """
 
+import glob
 import math
+import os
 
 import cv2
 import cv_bridge
@@ -22,6 +24,7 @@ class CameraNode(object):
         if isinstance(device, str) and device.isdigit():
             device = int(device)
         self.device = device
+        self.autodetect = bool(rospy.get_param('~autodetect', True))
 
         self.width = int(rospy.get_param('~width', 1280))
         self.height = int(rospy.get_param('~height', 720))
@@ -59,40 +62,77 @@ class CameraNode(object):
             self.device, self.width, self.height,
             self.fps, self.image_topic)
 
+    def _candidate_devices(self):
+        """Return the configured device plus any other /dev/video* nodes."""
+        candidates = []
+        if self.device not in ('', 'auto'):
+            candidates.append(self.device)
+        if self.autodetect:
+            for path in sorted(glob.glob('/dev/video*')):
+                if path not in candidates:
+                    candidates.append(path)
+        return candidates
+
     def _open_camera(self):
         backend = getattr(cv2, 'CAP_V4L2', 0)
-        cap = cv2.VideoCapture(self.device, backend)
-        if not cap.isOpened():
-            rospy.logwarn_throttle(
-                10.0, 'camera: cannot open %s', self.device)
-            cap.release()
+        candidates = self._candidate_devices()
+        if not candidates:
+            rospy.logerr_throttle(
+                10.0, 'camera: no /dev/video* devices; check USB/power '
+                      'and run v4l2-ctl --list-devices')
             return False
 
-        # Set the pixel format first: some V4L2 drivers reset the frame
-        # size and rate when the format changes.
-        if self.fourcc and len(self.fourcc) == 4:
-            cap.set(cv2.CAP_PROP_FOURCC,
-                    cv2.VideoWriter_fourcc(*self.fourcc))
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        cap.set(cv2.CAP_PROP_FPS, self.fps)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        fourccs = []
+        for fourcc in (self.fourcc, 'MJPG', 'YUYV', ''):
+            if fourcc not in fourccs:
+                fourccs.append(fourcc)
 
-        actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        actual_fps = cap.get(cv2.CAP_PROP_FPS)
-        if actual_width > 0:
-            self.width = actual_width
-        if actual_height > 0:
-            self.height = actual_height
-        if actual_fps > 0:
-            self.fps = max(1, int(round(actual_fps)))
+        for device in candidates:
+            if (isinstance(device, str) and device.startswith('/dev/') and
+                    not os.path.exists(device)):
+                continue
+            for fourcc in fourccs:
+                cap = cv2.VideoCapture(device, backend)
+                if not cap.isOpened():
+                    cap.release()
+                    continue
 
-        self.cap = cap
-        rospy.loginfo(
-            'camera: opened %s (%dx%d @ %.1f fps)',
-            self.device, self.width, self.height, actual_fps)
-        return True
+                # Set the pixel format first: some V4L2 drivers reset the
+                # frame size and rate when the format changes.
+                if fourcc and len(fourcc) == 4:
+                    cap.set(cv2.CAP_PROP_FOURCC,
+                            cv2.VideoWriter_fourcc(*fourcc))
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                cap.set(cv2.CAP_PROP_FPS, self.fps)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+                ok, _frame = cap.read()
+                if not ok:
+                    cap.release()
+                    continue
+
+                self.device = device
+                actual_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                actual_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                actual_fps = cap.get(cv2.CAP_PROP_FPS)
+                if actual_width > 0:
+                    self.width = actual_width
+                if actual_height > 0:
+                    self.height = actual_height
+                if actual_fps > 0:
+                    self.fps = max(1, int(round(actual_fps)))
+
+                self.cap = cap
+                rospy.loginfo(
+                    'camera: opened %s (%dx%d @ %.1f fps, %s)',
+                    self.device, self.width, self.height, actual_fps,
+                    fourcc or 'driver default')
+                return True
+
+        rospy.logwarn_throttle(
+            10.0, 'camera: cannot open any of %s', candidates)
+        return False
 
     def _make_camera_info(self):
         if self.hfov <= 0.0:
@@ -125,17 +165,21 @@ class CameraNode(object):
     def spin(self):
         rate = rospy.Rate(self.fps)
         while not rospy.is_shutdown():
-            if self.cap is None or not self.cap.isOpened():
+            cap = self.cap
+            if cap is None or not cap.isOpened():
                 if not self._open_camera():
                     rospy.sleep(1.0)
                     continue
+                cap = self.cap
 
-            ok, frame = self.cap.read()
+            ok, frame = cap.read()
             if not ok:
-                rospy.logwarn_throttle(
-                    5.0, 'camera: read failed, reopening %s',
-                    self.device)
-                self.cap.release()
+                if not rospy.is_shutdown():
+                    rospy.logwarn_throttle(
+                        5.0, 'camera: read failed, reopening %s',
+                        self.device)
+                if self.cap is not None:
+                    self.cap.release()
                 self.cap = None
                 continue
 

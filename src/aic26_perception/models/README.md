@@ -56,11 +56,27 @@ The nodes read the fixed input size straight from the model, so the
 ``~input_size`` parameter (default 640) is only a fallback and is overridden
 by the value exported in the ONNX graph.
 
-Backend: the detectors use onnxruntime when it is installed, because
-OpenCV's ``dnn`` module cannot execute the int8 quantisation used by these
-models. ``cv2.dnn`` is kept as a fallback for float models.
+Backend: OpenVINO is preferred on Intel CPUs.  The three models are int8,
+which OpenCV 4.2 `dnn` cannot load (it fails in `getMatFromTensor`), so at
+least one of OpenVINO or onnxruntime must be installed:
 
-    pip install onnxruntime        # CPU, enough for these models
+    pip install openvino          # preferred on this machine
+    pip install onnxruntime       # portable CPU fallback
+
+Measured on the AIC26 Intel N100 (4 cores, 640x640 int8, full
+letterbox + inference + decode pipeline):
+
+    OpenVINO CPU, 2 threads: ~94-98 ms/frame  (~10 FPS)
+    onnxruntime CPU:         ~253-325 ms/frame (~3-4 FPS)
+
+`AIC26_OV_THREADS` selects the OpenVINO thread count (default 2, leaving two
+cores for ROS/navigation).  The N100 has no NVIDIA GPU and the Intel iGPU has
+no OpenCL runtime, so OpenVINO's GPU plugin is not available; everything runs
+on the CPU.
+
+The detectors only run while `/perception/detect` requests their target and
+are limited to `~max_rate` (default 5 Hz), so 10 FPS inference is enough and
+does not build a 30 FPS queue.  The debug images are published at that rate.
 
 The three `*_int8.onnx` files are tracked in this repository. The nodes log a
 warning and publish empty / `UNKNOWN` results when a model file is absent or the

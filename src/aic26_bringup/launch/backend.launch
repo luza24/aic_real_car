@@ -16,11 +16,22 @@
   <arg name="show_view" default="true"/>
 
   <!-- real hardware -->
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="chassis_port" default="/dev/carserial"/>
+  <!-- Keep the real odometry origin on the same map coordinates as Gazebo.
+       The mode launch files pass their AMCL initial pose through these. -->
+  <arg name="chassis_initial_x" default="1.6"/>
+  <arg name="chassis_initial_y" default="1.7"/>
+  <arg name="chassis_initial_yaw" default="3.141592"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera" default="true"/>
   <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera_width" default="1280"/>
+  <arg name="camera_height" default="720"/>
+  <arg name="camera_fps" default="30"/>
+  <arg name="camera_view_width" default="640"/>
+  <arg name="camera_view_height" default="360"/>
   <arg name="teleop" default="false"/>
 
   <group if="$(eval arg('backend') == 'sim')">
@@ -35,14 +46,23 @@
     <include file="$(find aic26_cobot)/launch/hardware.launch">
       <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
       <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="initial_x" value="$(arg chassis_initial_x)"/>
+      <arg name="initial_y" value="$(arg chassis_initial_y)"/>
+      <arg name="initial_yaw" value="$(arg chassis_initial_yaw)"/>
       <arg name="imu_port" value="$(arg imu_port)"/>
       <arg name="lidar_port" value="$(arg lidar_port)"/>
       <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="camera" value="$(arg camera)"/>
+      <arg name="camera_width" value="$(arg camera_width)"/>
+      <arg name="camera_height" value="$(arg camera_height)"/>
+      <arg name="camera_fps" value="$(arg camera_fps)"/>
       <arg name="teleop" value="$(arg teleop)"/>
     </include>
     <include if="$(arg show_view)"
              file="$(find aic26_utils)/launch/camera_view.launch">
       <arg name="image" value="/camera/image_raw"/>
+      <arg name="width" value="$(arg camera_view_width)"/>
+      <arg name="height" value="$(arg camera_view_height)"/>
     </include>
   </group>
 

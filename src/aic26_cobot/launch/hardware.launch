@@ -12,13 +12,24 @@
   <arg name="robot_state_publisher" default="true"/>
   <arg name="teleop" default="false"/>
 
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="publish_tf" default="true"/>
+  <arg name="initial_x" default="1.6"/>
+  <arg name="initial_y" default="1.7"/>
+  <arg name="initial_yaw" default="3.141592"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
   <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera_width" default="1280"/>
+  <arg name="camera_height" default="720"/>
+  <arg name="camera_fps" default="30"/>
   <arg name="node_delay" default="0.0"/>
+
+  <!-- Real hardware uses wall-clock time. A leftover /use_sim_time=true from a
+       previous Gazebo session freezes TF timestamps and makes RViz show stale
+       robot poses. -->
+  <param name="/use_sim_time" value="false"/>
 
   <group if="$(arg robot_state_publisher)">
     <param name="robot_description"
@@ -32,6 +43,9 @@
       <arg name="port" value="$(arg chassis_port)"/>
       <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
       <arg name="publish_tf" value="$(arg publish_tf)"/>
+      <arg name="initial_x" value="$(arg initial_x)"/>
+      <arg name="initial_y" value="$(arg initial_y)"/>
+      <arg name="initial_yaw" value="$(arg initial_yaw)"/>
       <arg name="node_delay" value="$(arg node_delay)"/>
     </include>
   </group>
@@ -53,6 +67,9 @@
   <group if="$(arg camera)">
     <include file="$(find aic26_cobot)/launch/camera.launch">
       <arg name="device" value="$(arg camera_device)"/>
+      <arg name="width" value="$(arg camera_width)"/>
+      <arg name="height" value="$(arg camera_height)"/>
+      <arg name="fps" value="$(arg camera_fps)"/>
       <arg name="node_delay" value="$(arg node_delay)"/>
     </include>
   </group>

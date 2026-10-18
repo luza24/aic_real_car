@@ -2,6 +2,7 @@
 <launch>
 
   <arg name="device" default="/dev/video0"/>
+  <arg name="autodetect" default="true"/>
   <arg name="width" default="1280"/>
   <arg name="height" default="720"/>
   <arg name="fps" default="30"/>
@@ -14,6 +15,7 @@
     <rosparam command="load"
               file="$(find aic26_cobot)/config/camera.yaml"/>
     <param name="device" value="$(arg device)"/>
+    <param name="autodetect" value="$(arg autodetect)" type="bool"/>
     <param name="width" value="$(arg width)" type="int"/>
     <param name="height" value="$(arg height)" type="int"/>
     <param name="fps" value="$(arg fps)" type="int"/>

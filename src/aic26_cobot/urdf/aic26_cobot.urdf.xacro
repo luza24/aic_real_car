@@ -8,29 +8,69 @@
   declared here: robot_state_publisher needs nothing else and the Gazebo
   plugins are irrelevant on the real robot.
 
-  If the real mounting differs, update the offsets in this file.
+  The laser mounting intentionally differs from the simulation in position
+  only: the real N10_P sits 0.10 m ahead of base_link.  The laser frame is
+  kept at yaw 0 so that the real and simulated scan/TF conventions are
+  identical; the sensor zero mark is corrected by angle_offset_deg in
+  config/lidar.yaml. If the real mounting changes, update the offsets here.
 -->
 <robot name="aic26_cobot" xmlns:xacro="http://wiki.ros.org/xacro">
   <xacro:property name="wheel_radius" value="0.07"/>
-  <xacro:property name="laser_z" value="0.085"/>
+  <!-- Measured on the real car: the N10_P is 0.10 m ahead of base_link.
+       Keep the laser frame aligned with base_link (yaw 0), exactly like the
+       simulation.  The sensor zero mark is corrected by angle_offset_deg in
+       config/lidar.yaml, not by the TF. -->
+  <xacro:property name="laser_x" value="0.10"/>
+  <xacro:property name="laser_y" value="0.0"/>
+  <xacro:property name="laser_z" value="0.05"/>
+  <xacro:property name="laser_yaw" value="0.0"/>
   <xacro:property name="camera_x" value="0.0975"/>
   <xacro:property name="camera_z" value="0.055"/>
   <xacro:property name="imu_z" value="0.02"/>
 
   <link name="base_footprint"/>
 
-  <link name="base_link"/>
+  <link name="base_link">
+    <!-- Visual only. The real TF tree only needs the frames, but a simple
+         body box and a red front marker make the car orientation obvious
+         in RViz (the chassis itself is otherwise just coordinate axes). -->
+    <visual>
+      <geometry>
+        <box size="0.28 0.27 0.07"/>
+      </geometry>
+      <material name="body_grey">
+        <color rgba="0.55 0.55 0.55 1.0"/>
+      </material>
+    </visual>
+  </link>
   <joint name="base_link_joint" type="fixed">
     <parent link="base_footprint"/>
     <child link="base_link"/>
     <origin xyz="0 0 ${wheel_radius}" rpy="0 0 0"/>
   </joint>
 
+  <link name="front_marker">
+    <visual>
+      <geometry>
+        <box size="0.02 0.06 0.02"/>
+      </geometry>
+      <material name="front_red">
+        <color rgba="1.0 0.0 0.0 1.0"/>
+      </material>
+    </visual>
+  </link>
+  <joint name="front_marker_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_marker"/>
+    <origin xyz="0.15 0 0.045" rpy="0 0 0"/>
+  </joint>
+
   <link name="laser"/>
   <joint name="laser_joint" type="fixed">
     <parent link="base_link"/>
     <child link="laser"/>
-    <origin xyz="0 0 ${laser_z}" rpy="0 0 0"/>
+    <origin xyz="${laser_x} ${laser_y} ${laser_z}"
+            rpy="0 0 ${laser_yaw}"/>
   </joint>
 
   <link name="camera"/>

@@ -85,6 +85,8 @@ class CarDetector(object):
         self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
+        self.max_rate = float(rospy.get_param('~max_rate', 5.0))
+        self.last_infer = rospy.Time(0)
 
         # OCR settings
         self.plate_roi = rospy.get_param('~plate_roi', PLATE_ROI)
@@ -118,7 +120,7 @@ class CarDetector(object):
             Image, queue_size=1)
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
-                         Image, self.on_image)
+                         Image, self.on_image, queue_size=1)
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
@@ -228,6 +230,7 @@ class CarDetector(object):
             self.plate = ''
             self.plate_conf = 0.0
             self.plate_done = True
+            self.last_infer = rospy.Time(0)
             rospy.loginfo("car read restarted")
         else:
             self.active = False
@@ -237,6 +240,11 @@ class CarDetector(object):
             return
         if not self.net.ready:
             return
+        now = rospy.Time.now()
+        if (self.max_rate > 0.0 and
+                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
+            return
+        self.last_infer = now
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)

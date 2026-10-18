@@ -3,8 +3,11 @@
 
   <arg name="port" default="/dev/carserial"/>
   <arg name="baud" default="115200"/>
-  <arg name="use_imu_yaw" default="true"/>
+  <arg name="use_imu_yaw" default="false"/>
   <arg name="publish_tf" default="true"/>
+  <arg name="initial_x" default="1.6"/>
+  <arg name="initial_y" default="1.7"/>
+  <arg name="initial_yaw" default="3.141592"/>
   <arg name="node_delay" default="0.0"/>
 
   <node name="chassis" pkg="aic26_cobot" type="chassis_node.py"
@@ -16,6 +19,9 @@
     <param name="baud" value="$(arg baud)" type="int"/>
     <param name="use_imu_yaw" value="$(arg use_imu_yaw)" type="bool"/>
     <param name="publish_tf" value="$(arg publish_tf)" type="bool"/>
+    <param name="initial_x" value="$(arg initial_x)" type="double"/>
+    <param name="initial_y" value="$(arg initial_y)" type="double"/>
+    <param name="initial_yaw" value="$(arg initial_yaw)" type="double"/>
   </node>
 
 </launch>

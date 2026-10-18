@@ -17,6 +17,7 @@
     <param name="input_size"   value="640"/>
     <param name="conf"         value="0.5"/>
     <param name="nms"          value="0.45"/>
+    <param name="max_rate"     value="5.0"/>
   </node>
 
 </launch>

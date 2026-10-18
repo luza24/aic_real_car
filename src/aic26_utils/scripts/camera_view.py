@@ -14,7 +14,7 @@ Params:
     ~scale        multiplies width/height (default 1.0, AIC26_GUI_SCALE wins)
     ~window_name  window title (default 'camera')
     ~x, ~y        window position in pixels (default 40, 40)
-    ~rate         refresh rate in Hz (default 30.0)
+    ~rate         refresh rate in Hz (default 15.0)
 
 q, ESC or closing the window stops the node, so it can be relaunched together
 with the rest of the launch file.
@@ -52,21 +52,19 @@ class CameraView(object):
         self.topic = topic
         self.bridge = CvBridge()
         self.lock = threading.Lock()
-        self.frame = None         # newest bgr frame, or None before the first
+        self.msg = None           # newest Image message, or None
         rospy.Subscriber(topic, Image, self.on_image, queue_size=1)
 
     def on_image(self, msg):
-        try:
-            frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
-        except Exception as err:                       # noqa: BLE001
-            rospy.logwarn_throttle(10.0, "camera view: bad frame: %s", err)
-            return
+        # Keep the raw message; conversion happens at the display rate, not
+        # at the full camera rate.  This is the cheapest way to show a live
+        # view on a CPU-only machine (OpenCV here has no OpenGL support).
         with self.lock:
-            self.frame = frame
+            self.msg = msg
 
     def latest(self):
         with self.lock:
-            return self.frame
+            return self.msg
 
     def run(self):
         """Show the window in the main thread (GTK is not thread safe)."""
@@ -83,12 +81,23 @@ class CameraView(object):
         rospy.loginfo("camera view: %s on %s (%dx%d)",
                       name, self.topic, width, height)
 
-        rate = rospy.Rate(rospy.get_param('~rate', 30.0))
+        rate = rospy.Rate(rospy.get_param('~rate', 15.0))
         visible_seen = False      # WND_PROP_VISIBLE is 0 before the first map
         while not rospy.is_shutdown():
-            frame = self.latest()
-            if frame is not None:
-                cv2.imshow(name, frame)
+            msg = self.latest()
+            if msg is not None:
+                try:
+                    frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+                except Exception as err:                   # noqa: BLE001
+                    rospy.logwarn_throttle(
+                        10.0, "camera view: bad frame: %s", err)
+                else:
+                    if (frame.shape[1] != width or
+                            frame.shape[0] != height):
+                        frame = cv2.resize(
+                            frame, (width, height),
+                            interpolation=cv2.INTER_AREA)
+                    cv2.imshow(name, frame)
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord('q')):
                 break

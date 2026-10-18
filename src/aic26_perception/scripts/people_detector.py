@@ -53,6 +53,11 @@ class PeopleDetector(object):
         self.size = rospy.get_param('~input_size', 640)
         self.conf = rospy.get_param('~conf', 0.5)
         self.nms = rospy.get_param('~nms', 0.45)
+        # Inference is ~100 ms on the N100; processing every 30 FPS camera
+        # frame would just build a queue.  5 Hz is plenty for a detection
+        # dwell and leaves CPU for navigation and the other nodes.
+        self.max_rate = float(rospy.get_param('~max_rate', 5.0))
+        self.last_infer = rospy.Time(0)
 
         self.bridge = CvBridge()
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
@@ -71,7 +76,7 @@ class PeopleDetector(object):
             Image, queue_size=1)
 
         rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
-                         Image, self.on_image)
+                         Image, self.on_image, queue_size=1)
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
@@ -100,6 +105,7 @@ class PeopleDetector(object):
         if req == 'people':
             self.active = True
             self.seen = set()
+            self.last_infer = rospy.Time(0)
             rospy.loginfo("people count restarted")
         else:
             self.active = False
@@ -109,6 +115,11 @@ class PeopleDetector(object):
             return
         if not self.net.ready:
             return
+        now = rospy.Time.now()
+        if (self.max_rate > 0.0 and
+                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
+            return
+        self.last_infer = now
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)
