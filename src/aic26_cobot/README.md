@@ -45,11 +45,12 @@ RGB UVC stream with OpenCV and does not open the depth stream.
 `/imu/mag` is published only when `publish_mag` is enabled and contains raw
 magnetometer counts.
 
-`urdf/aic26_cobot.urdf.xacro` provides the fixed TF tree
-`base_footprint -> base_link -> laser/camera/imu_link` plus
-`camera -> camera_optical_frame`. The dimensions mirror `aic26_description`,
-so the real and simulated robots share frame names. The chassis node publishes
-`odom -> base_footprint`; `robot_state_publisher` publishes the fixed links.
+`aic26_description/urdf/cobot.xacro` provides the fixed TF tree
+`base_footprint -> base_link -> wheels/case/laser/camera_mount/imu_link` plus
+`camera_mount -> camera -> camera_optical_frame`. The dimensions are the
+measured robot dimensions, so the real and simulated robots share frame names.
+The chassis node publishes `odom -> base_footprint`; `robot_state_publisher`
+publishes the fixed links.
 
 The chassis starts at the simulated spawn pose `(1.6, 1.7, pi)`
 (`initial_x/y/yaw` in `config/chassis.yaml`). With AMCL using the same initial

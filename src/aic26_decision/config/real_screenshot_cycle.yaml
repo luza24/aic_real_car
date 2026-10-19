@@ -1,0 +1,125 @@
+# Real-robot capture / demo route for capture_cycle.py and demo_cycle.py.
+# Selected by capture.launch / demo.launch when backend:=real; the simulation
+# counterpart is sim_screenshot_cycle.yaml.
+#
+# Waypoint names must exist in real_waypoints.yaml. The values below currently
+# mirror the simulation route; adjust stops, turns, dwell and wait times for
+# the real field here.
+#
+# Mirrors the real inspection mission (config/real_tasks.yaml) waypoint by
+# waypoint so the collected images match the real run: same order, same
+# in-place turns, same dwell times.
+#
+# The vision detectors are replaced by a directly published result, so the
+# cycle can run end to end without any model. Each stop saves labeled
+# screenshots into .datasets/screenshots/<label>/.
+#
+# Fields:
+#   name    waypoint name in config/real_waypoints.yaml
+#   label   dataset sub folder for the images of this stop
+#   turn    rotate in place before shooting: "left", "right" or omitted
+#           (in place cmd_vel rotation, the navigation stack is not used)
+#   dwell        seconds to stay still at the target before shooting (default 0)
+#   shots        total pictures wanted for this stop; the cycle repeats the
+#                route until every stop reached its count (default 1)
+#   shots_per_pass  pictures taken per route pass while looping (default 1,
+#                keeps the robot moving so the frames stay diverse)
+#   wait         max seconds to wait for GREEN at a traffic light (default 0)
+#   light        traffic light model to watch, e.g. traffic_light_1
+#   result       json published on /perception/result to fake the vision output
+#
+# The capture loop stops when all "shots" targets are met or on Ctrl-C.
+# Existing files are never overwritten, so the run is resumable.
+
+waypoints:
+  - name: "corner_1"
+    label: "010_leave_start"
+    shots: 20
+    shots_per_pass: 1
+
+  - name: "traffic_light_1"
+    label: "020_light_1"
+    light: "traffic_light_1"
+    wait: 40
+    shots: 60
+    shots_per_pass: 3
+
+  - name: "station_1"
+    label: "030_people_b"
+    turn: "left"
+    dwell: 2.0
+    shots: 100
+    shots_per_pass: 5
+    result: '{"target": "people", "total": 8, "intruder": 0}'
+
+  - name: "station_2"
+    label: "040_people_a"
+    turn: "left"
+    dwell: 2.0
+    shots: 100
+    shots_per_pass: 5
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
+  - name: "station_3"
+    label: "050_people_f"
+    turn: "left"
+    dwell: 2.0
+    shots: 100
+    shots_per_pass: 5
+    result: '{"target": "people", "total": 2, "intruder": 2}'
+
+  - name: "station_3"
+    label: "060_people_c"
+    turn: "right"
+    dwell: 2.0
+    shots: 100
+    shots_per_pass: 5
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
+  - name: "traffic_light_2"
+    label: "070_people_d"
+    turn: "right"
+    dwell: 2.0
+    shots: 100
+    shots_per_pass: 5
+    result: '{"target": "people", "total": 4, "intruder": 0}'
+
+  - name: "traffic_light_2"
+    label: "080_light_2"
+    light: "traffic_light_2"
+    wait: 40
+    shots: 60
+    shots_per_pass: 3
+
+  - name: "car_1"
+    label: "090_car_1"
+    dwell: 2.0
+    shots: 40
+    shots_per_pass: 2
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
+
+  - name: "car_2"
+    label: "091_car_2"
+    turn: "right"
+    dwell: 2.0
+    shots: 40
+    shots_per_pass: 2
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "鄂D·7B5Q2", "plate_conf": 0.95}'
+
+  - name: "car_3"
+    label: "092_car_3"
+    turn: "right"
+    dwell: 2.0
+    shots: 40
+    shots_per_pass: 2
+    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·PL12A", "plate_conf": 0.95}'
+
+  - name: "corner_1"
+    label: "100_return_back"
+    shots: 20
+    shots_per_pass: 1
+
+  - name: "start"
+    label: "101_return_home"
+    shots: 20
+    shots_per_pass: 1

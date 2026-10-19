@@ -3,10 +3,20 @@
 
   <!-- Only the inspection mission controller. The world, navigation stack and
        perception nodes are launched by the aic26_bringup mission launch file;
-       this file can also be included next to an already running stack. -->
+       this file can also be included next to an already running stack.
 
-  <arg name="tasks_file"     default="$(find aic26_decision)/config/tasks.yaml"/>
-  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+       backend selects the waypoint / task configuration set:
+         sim   config/sim_tasks.yaml,      config/sim_waypoints.yaml
+         real  config/real_tasks.yaml,     config/real_waypoints.yaml
+       tasks_file / waypoints_file can still be overridden explicitly. -->
+
+  <arg name="backend" default="sim"/>
+  <arg name="config_prefix"
+       default="$(eval 'real' if arg('backend') == 'real' else 'sim')"/>
+  <arg name="tasks_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_tasks.yaml"/>
+  <arg name="waypoints_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
   <!-- show the detection result GUI and write the results to disk -->
   <arg name="gui"            default="true"/>
   <arg name="results_dir"    default="$(find aic26_perception)/results"/>
@@ -42,7 +52,7 @@
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
     <param name="turn_settle"     value="0.5"/>
-    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_speed"      value="1.6"/>
     <param name="turn_tolerance"  value="0.05"/>
     <param name="turn_timeout"    value="20.0"/>
   </node>

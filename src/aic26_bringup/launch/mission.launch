@@ -73,7 +73,10 @@
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
 
+  <!-- backend also selects the config/<backend>_tasks.yaml and
+       config/<backend>_waypoints.yaml set in aic26_decision -->
   <include file="$(find aic26_decision)/launch/mission.launch">
+    <arg name="backend" value="$(arg backend)"/>
     <arg name="gui" value="$(arg gui)"/>
     <arg name="light_fallback" value="$(arg light_fallback)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>

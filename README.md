@@ -5,9 +5,10 @@
 # AIC26 Smart Community Inspection Robot
 
 ROS 1 (Noetic) catkin workspace for the AIC26 Smart Community challenge. A
-four-wheel skid-steer robot (`armbot`) drives through a simulated community,
-follows a fixed inspection route, waits at traffic lights, counts community
-people, reads car license plates and reports the results.
+four-wheel omnidirectional (mecanum) robot (`armbot`) drives through a
+simulated community, follows a fixed inspection route, waits at traffic
+lights, counts community people, reads car license plates and reports the
+results.
 
 The simulation backend runs in Gazebo: URDF/xacro robot, a community
 simulation with traffic lights, a saved 2D map, AMCL localization, move_base,
@@ -103,7 +104,7 @@ roslaunch aic26_bringup bringup.launch
 This starts the default `mission` mode on the simulation backend: Gazebo,
 navigation, the three perception nodes and `mission_controller` with its result
 viewer. The robot drives the inspection route defined in
-`aic26_decision/config/tasks.yaml`.
+`aic26_decision/config/sim_tasks.yaml`.
 
 ## Run modes
 
@@ -208,7 +209,7 @@ for slower machines; on a fast machine use e.g. `nav_delay:=5 task_delay:=10`.
 | --- | --- |
 | `aic26_bringup` | top-level launch entry points for every run mode |
 | `aic26_cobot` | real-robot hardware drivers: chassis, IMU, lidar, camera, diagnostics |
-| `aic26_description` | xacro/URDF robot: base, four wheels, laser, camera, headlights |
+| `aic26_description` | xacro/URDF robot models: Gazebo armbot and real cobot (base, four wheels, laser, camera) |
 | `aic26_gazebo` | community simulation assets, models, traffic light controller, day/night and C++ visual plugins |
 | `aic26_msgs` | `TrafficLightCommand` and `TrafficLightState` messages |
 | `aic26_slam` | gmapping launch and the saved 2D map |
@@ -219,8 +220,11 @@ for slower machines; on a fast machine use e.g. `nav_delay:=5 task_delay:=10`.
 
 ## Robot and simulation
 
-- `armbot` is a four-wheel skid-steer robot. It is spawned at
-  `(1.6, 1.7, yaw=pi)` and publishes `/odom` and `/tf`.
+- `armbot` is a four-wheel omnidirectional robot. It is spawned at
+  `(1.6, 1.7, yaw=pi)` and publishes `/odom` and `/tf`. The Gazebo model uses
+  the planar-move plugin, which executes the full `/cmd_vel` twist including
+  the lateral component, and the TEB configuration is holonomic
+  (`max_vel_y`, `acc_lim_y`, `weight_kinematics_nh: 0`).
 - Sensors: a 1280x720 camera at 30 Hz and a 720-beam laser with a 270 degree
   field of view and 12 m range.
 - The saved map `aic26_slam/maps/world.yaml` is 224 x 224 cells at 0.05 m per
@@ -262,18 +266,34 @@ unchanged.
 
 ## Mission configuration
 
-- `aic26_decision/config/waypoints.yaml` defines named poses with `x`, `y`,
-  `yaw` and `dwell` fields.
-- `aic26_decision/config/tasks.yaml` is the ordered task list used by
-  `mission_controller`:
+The inspection files come in a `sim` and a `real` variant. The `backend`
+argument of the decision launch files selects the set, and
+`aic26_bringup` forwards its own `backend` value to them:
+
+| backend | waypoints | tasks / route |
+| --- | --- | --- |
+| `sim` (default) | `sim_waypoints.yaml` | `sim_tasks.yaml`, `sim_screenshot_cycle.yaml` |
+| `real` | `real_waypoints.yaml` | `real_tasks.yaml`, `real_screenshot_cycle.yaml` |
+
+- `aic26_decision/config/sim_waypoints.yaml` and `real_waypoints.yaml` define
+  named poses with `x`, `y`, `yaw` and `dwell` fields. They must use the same
+  names, because the task and route files refer to waypoints by name.
+- `aic26_decision/config/sim_tasks.yaml` and `real_tasks.yaml` are the ordered
+  task lists used by `mission_controller`:
   - `goto`: navigate to a waypoint and continue.
   - `traffic_light`: wait at the stop line until the light is GREEN, then pass.
   - `inspect`: navigate, optionally turn in place, dwell, trigger a detector
     and report the result.
   - `report`: announce a collected result without moving.
-- `aic26_decision/config/screenshot_cycle.yaml` mirrors the mission route for
-  `capture_cycle`, stop by stop, so captures use the same viewpoints. Each
-  stop has a `label`, `shots`, `shots_per_pass` and a faked `result` JSON.
+- `aic26_decision/config/sim_screenshot_cycle.yaml` and
+  `real_screenshot_cycle.yaml` mirror the corresponding mission route for
+  `capture_cycle` / `demo_cycle`, stop by stop, so captures use the same
+  viewpoints. Each stop has a `label`, `shots`, `shots_per_pass` and a faked
+  `result` JSON.
+- The `_real` files currently mirror the simulation values. Measure the poses
+  and tune dwell / wait times on the real field in those files; no launch or
+  code change is needed. `tasks_file`, `waypoints_file` and `route_file` can
+  also be overridden explicitly on any decision launch file.
 - `mission_controller` publishes announcements on `/speech`
   (`std_msgs/String`). No text-to-speech node is included; connect any TTS
   consumer to that topic.
@@ -335,7 +355,7 @@ names. The table lists both producers where they differ.
 | `/camera/image_raw` | `sensor_msgs/Image` | Gazebo camera / `aic26_cobot` camera |
 | `/camera/camera_info` | `sensor_msgs/CameraInfo` | Gazebo camera / `aic26_cobot` camera |
 | `/scan` | `sensor_msgs/LaserScan` | Gazebo laser / `aic26_cobot` lidar |
-| `/odom` | `nav_msgs/Odometry` | skid-steer plugin / `aic26_cobot` chassis |
+| `/odom` | `nav_msgs/Odometry` | planar-move plugin / `aic26_cobot` chassis |
 | `/vel_raw` | `geometry_msgs/Twist` | `aic26_cobot` chassis (measured velocity) |
 | `/imu/data` | `sensor_msgs/Imu` | `aic26_cobot` IMU |
 | `/diagnostics` | `diagnostic_msgs/DiagnosticArray` | `aic26_cobot` status monitor |

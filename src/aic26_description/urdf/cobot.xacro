@@ -1,0 +1,202 @@
+<?xml version="1.0"?>
+<!--
+  AIC26 cobot: geometry and static TF tree.
+
+  The part poses are copied from the mechanical drawing. The drawing uses
+  centimetres and puts z = 0 on the floor, so every value is converted with
+  the `cm` property. base_footprint is the floor projection and base_link
+  sits on the wheel axle (z = wheel radius), which keeps the same convention
+  as the Gazebo model:
+
+      base_footprint                       floor, z = 0
+      +- base_link                         wheel axle, carries the footprint plate
+         +- front_left_wheel               fixed wheels
+         +- front_right_wheel
+         +- back_left_wheel
+         +- back_right_wheel
+         +- case                           electronics case
+         +- laser                          lidar (frame name used by /scan)
+         +- camera_mount
+         |  +- camera
+         |     +- camera_optical_frame
+         +- imu_link
+
+  Only fixed joints are declared: the real chassis does not report individual
+  wheel angles, so robot_state_publisher can publish the complete TF tree
+  without any /joint_states input. This file is meant for TF and RViz on the
+  real robot; the Gazebo model is gazebo_car_union.xacro.
+-->
+<robot name="aic26_cobot" xmlns:xacro="http://wiki.ros.org/xacro">
+  <!-- Drawing unit: 1 cm = 0.01 m. -->
+  <xacro:property name="cm" value="0.01"/>
+
+  <!-- wheel: cylinder rl (3.5, 3.5) cm, axis along y -->
+  <xacro:property name="wheel_radius" value="${3.5 * cm}"/>
+  <xacro:property name="wheel_length" value="${3.5 * cm}"/>
+  <xacro:property name="wheel_x" value="${10.0 * cm}"/>
+  <xacro:property name="wheel_y" value="${12.5 * cm}"/>
+
+  <!-- base_link is at the wheel axle (3.5 cm above the floor); the remaining
+       drawing poses are converted to offsets from that height. -->
+  <xacro:property name="base_link_z" value="${wheel_radius}"/>
+  <!-- footprint: box (31.5, 17.5, 3.5) cm at (0, 0, 5.25) cm -->
+  <xacro:property name="footprint_z" value="${5.25 * cm - base_link_z}"/>
+  <!-- case: box (26, 17.5, 7) cm at (-5.5, 0, 10.5) cm -->
+  <xacro:property name="case_z" value="${10.5 * cm - base_link_z}"/>
+  <!-- lidar: cylinder rl (2.5, 3.5) cm at (8, 0, 15.75) cm -->
+  <xacro:property name="laser_x" value="${8.0 * cm}"/>
+  <xacro:property name="laser_z" value="${15.75 * cm - base_link_z}"/>
+  <!-- camera_mount: box (2, 3.5, 10) cm at (0, 0, 19) cm -->
+  <xacro:property name="camera_mount_z" value="${19.0 * cm - base_link_z}"/>
+  <!-- camera: box (2.5, 9, 2.5) cm at (2, 0, 20.25) cm, relative to the mount -->
+  <xacro:property name="camera_x" value="${2.0 * cm}"/>
+  <xacro:property name="camera_z" value="${20.25 * cm - 19.0 * cm}"/>
+
+  <material name="body_grey">
+    <color rgba="0.55 0.55 0.55 1.0"/>
+  </material>
+  <material name="case_grey">
+    <color rgba="0.30 0.30 0.30 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="sensor_black">
+    <color rgba="0.10 0.10 0.10 1.0"/>
+  </material>
+
+  <!-- A box part whose link frame is at the box centre. The joint name is
+       derived from the part name, e.g. base_link -> base_link_joint. -->
+  <xacro:macro name="box_part" params="name parent l w h xyz material">
+    <link name="${name}">
+      <visual>
+        <geometry>
+          <box size="${l} ${w} ${h}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="${l} ${w} ${h}"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <!-- A cylinder part whose link frame is at the cylinder centre. `rpy`
+       rotates the geometry only; the link frame stays aligned with the
+       parent frame (the lidar keeps yaw 0, like the Gazebo sensor). -->
+  <xacro:macro name="cylinder_part" params="name parent r l xyz rpy material">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${rpy}"/>
+        <geometry>
+          <cylinder radius="${r}" length="${l}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${rpy}"/>
+        <geometry>
+          <cylinder radius="${r}" length="${l}"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+
+  <!-- footprint: box (31.5, 17.5, 3.5) cm at (0, 0, 5.25) cm. base_link itself
+       stays on the wheel axle, so the plate is offset inside the link. -->
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${footprint_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${31.5 * cm} ${17.5 * cm} ${3.5 * cm}"/>
+      </geometry>
+      <material name="body_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${footprint_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${31.5 * cm} ${17.5 * cm} ${3.5 * cm}"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="base_link_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${base_link_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- wheel: rl (3.5, 3.5) cm at (10, +/-12.5, 3.5) and (-10, +/-12.5, 3.5) cm.
+       rpy (pi/2, 0, 0) turns the cylinder axis from z to y. -->
+  <xacro:property name="wheel_rpy" value="1.570796 0 0"/>
+  <xacro:cylinder_part name="front_left_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${wheel_x} ${wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="front_right_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${wheel_x} ${-wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="back_left_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${-wheel_x} ${wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="back_right_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${-wheel_x} ${-wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+
+  <!-- case: box (26, 17.5, 7) cm at (-5.5, 0, 10.5) cm -->
+  <xacro:box_part name="case" parent="base_link"
+                  l="${26.0 * cm}" w="${17.5 * cm}" h="${7.0 * cm}"
+                  xyz="${-5.5 * cm} 0 ${case_z}" material="case_grey"/>
+
+  <!-- lidar: cylinder rl (2.5, 3.5) cm at (8, 0, 15.75) cm. The TF frame is
+       called "laser" because config/lidar.yaml and the Gazebo sensor publish
+       /scan in that frame. -->
+  <xacro:cylinder_part name="laser" parent="base_link"
+                       r="${2.5 * cm}" l="${3.5 * cm}"
+                       xyz="${laser_x} 0 ${laser_z}" rpy="0 0 0"
+                       material="sensor_black"/>
+
+  <!-- camera_mount: box (2, 3.5, 10) cm at (0, 0, 19) cm -->
+  <xacro:box_part name="camera_mount" parent="base_link"
+                  l="${2.0 * cm}" w="${3.5 * cm}" h="${10.0 * cm}"
+                  xyz="0 0 ${camera_mount_z}" material="body_grey"/>
+
+  <!-- camera: box (2.5, 9, 2.5) cm at (2, 0, 20.25) cm, mounted on the
+       camera_mount. The optical frame is the REP 103 optical frame at the
+       camera origin: z forward, x right, y down. -->
+  <xacro:box_part name="camera" parent="camera_mount"
+                  l="${2.5 * cm}" w="${9.0 * cm}" h="${2.5 * cm}"
+                  xyz="${camera_x} 0 ${camera_z}" material="sensor_black"/>
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
+  </joint>
+
+  <!-- The IMU is not part of the drawing. It is placed in the centre of the
+       case so that imu_link (frame used by config/imu.yaml) exists. -->
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${-5.5 * cm} 0 ${case_z}" rpy="0 0 0"/>
+  </joint>
+</robot>
+

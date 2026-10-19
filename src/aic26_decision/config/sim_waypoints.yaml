@@ -1,3 +1,10 @@
+# Simulation waypoint set, used when mission.launch / waypoints.launch /
+# demo.launch / capture.launch run with backend:=sim (the default).
+#
+# The real-robot counterpart is real_waypoints.yaml. Both files must define
+# the same waypoint names, because the tasks and the capture route refer to
+# them by name.
+
 waypoints:
   - name: "traffic_light_1"
     x: 0.6
@@ -32,12 +39,12 @@ waypoints:
   - name: "car_2"
     x: 1.1
     y: -1.1
-    yaw: 1.570796
+    yaw: 0.000000
     dwell: 0.0
   - name: "car_3"
     x: 1.1
     y: -0.5
-    yaw: 1.570796
+    yaw: 0.000000
     dwell: 0.0
   - name: "corner_1"
     x: 1.1

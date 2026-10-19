@@ -20,12 +20,15 @@
   <depend>std_srvs</depend>
   <depend>tf</depend>
 
-  <!-- Runtime Python and helper packages. -->
-  <exec_depend>python3-opencv</exec_depend>
-  <exec_depend>python3-serial</exec_depend>
+  <!-- Runtime packages. -->
+  <exec_depend>aic26_description</exec_depend>
   <exec_depend>robot_state_publisher</exec_depend>
   <exec_depend>teleop_twist_keyboard</exec_depend>
   <exec_depend>xacro</exec_depend>
+
+  <!-- Runtime Python and helper packages. -->
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
 
   <test_depend>python3-nose</test_depend>
 

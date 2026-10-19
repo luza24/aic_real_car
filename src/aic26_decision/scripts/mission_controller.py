@@ -1,9 +1,11 @@
 """
 Inspection mission controller.
 
-Drives the robot along the route in config/tasks.yaml: navigate to each
-waypoint, optionally turn in place to face the target, wait at traffic lights
-until they are GREEN, trigger the vision detectors and announce the results.
+Drives the robot along the route in config/sim_tasks.yaml or
+config/real_tasks.yaml (selected by the backend launch argument): navigate
+to each waypoint, optionally turn in place to face the target, wait at
+traffic lights until they are GREEN, trigger the vision detectors and
+announce the results.
 
     pub : /speech                (std_msgs/String)
     pub : /perception/detect     (std_msgs/String, detection trigger)
@@ -15,7 +17,7 @@ The motion / rotation / traffic-light logic comes from mission_common, shared
 with the other aic26_decision nodes; this node only adds the task list, the
 speech and the detection result bookkeeping.
 
-Task types (config/tasks.yaml):
+Task types (config/<backend>_tasks.yaml):
     goto           navigate to the waypoint, then continue
     traffic_light  turn (optional), wait at the stop line until GREEN, pass
     inspect        navigate, turn, dwell, trigger detection, report

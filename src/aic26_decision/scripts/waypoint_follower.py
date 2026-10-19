@@ -1,7 +1,8 @@
 """
 Waypoint follower.
 
-Visits every waypoint in config/waypoints.yaml once, in file order, and stops.
+Visits every waypoint in config/sim_waypoints.yaml or config/real_waypoints.yaml
+(selected by the backend launch argument) once, in file order, and stops.
 Useful to check the map / localization / planner without running a full
 mission.
 

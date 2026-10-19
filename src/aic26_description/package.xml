@@ -2,7 +2,8 @@
 <package format="2">
   <name>aic26_description</name>
   <version>0.0.0</version>
-  <description>URDF/xacro description of the armbot robot.</description>
+  <description>URDF/xacro descriptions of the AIC26 robots: the Gazebo armbot
+  and the real cobot.</description>
 
   <maintainer email="govis@todo.todo">govis</maintainer>
 

@@ -1,10 +1,11 @@
 """
 Dataset capture cycle.
 
-Drives the robot along the real inspection route (config/screenshot_cycle.yaml
-mirrors config/tasks.yaml) and saves labeled screenshots at every stop. The
-vision detectors are replaced by a directly published result, so the whole
-cycle runs end to end without any model and the images are stored under
+Drives the robot along the inspection route
+(config/<backend>_screenshot_cycle.yaml mirrors config/<backend>_tasks.yaml)
+and saves labeled screenshots at every stop. The vision detectors are
+replaced by a directly published result, so the whole cycle runs end to end
+without any model and the images are stored under
 
     .datasets/screenshots/<label>/<label>_%04i.jpg
 

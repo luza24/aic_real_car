@@ -33,7 +33,7 @@
 
   <group if="$(arg robot_state_publisher)">
     <param name="robot_description"
-           command="$(find xacro)/xacro $(find aic26_cobot)/urdf/aic26_cobot.urdf.xacro"/>
+           command="$(find xacro)/xacro $(find aic26_description)/urdf/cobot.xacro"/>
     <node name="robot_state_publisher" pkg="robot_state_publisher"
           type="robot_state_publisher" output="screen"/>
   </group>

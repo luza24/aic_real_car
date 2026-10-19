@@ -60,7 +60,9 @@
     <arg name="laser_max_range" value="$(arg laser_max_range)"/>
   </include>
 
+  <!-- backend also selects the route / waypoint config set in aic26_decision -->
   <include file="$(find aic26_decision)/launch/capture.launch">
+    <arg name="backend" value="$(arg backend)"/>
     <arg name="sky_step" value="$(arg sky_step)"/>
     <arg name="until_done" value="$(arg until_done)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>

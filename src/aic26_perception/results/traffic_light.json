@@ -1,5 +1,5 @@
 {
   "target": "traffic_light",
   "model_name": "traffic_light",
-  "state": "RED"
+  "state": "UNKNOWN"
 }

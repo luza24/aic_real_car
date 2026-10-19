@@ -1,15 +1,17 @@
-# Dataset capture route for capture_cycle.py
+# Simulation dataset capture route for capture_cycle.py and demo_cycle.py.
+# Selected by capture.launch / demo.launch when backend:=sim (the default);
+# the real-robot counterpart is real_screenshot_cycle.yaml.
 #
-# Mirrors the real inspection mission (config/tasks.yaml) waypoint by
-# waypoint so the collected images match the real run: same order, same
-# in-place turns, same dwell times.
+# Mirrors the simulation inspection mission (config/sim_tasks.yaml) waypoint
+# by waypoint so the collected images match the simulation run: same order,
+# same in-place turns, same dwell times.
 #
 # The vision detectors are replaced by a directly published result, so the
 # cycle can run end to end without any model. Each stop saves labeled
 # screenshots into .datasets/screenshots/<label>/.
 #
 # Fields:
-#   name    waypoint name in config/waypoints.yaml
+#   name    waypoint name in config/sim_waypoints.yaml
 #   label   dataset sub folder for the images of this stop
 #   turn    rotate in place before shooting: "left", "right" or omitted
 #           (in place cmd_vel rotation, the navigation stack is not used)

@@ -1,10 +1,11 @@
 """
 Showcase cycle.
 
-Walks the inspection route (config/screenshot_cycle.yaml by default) over and
-over to demonstrate the whole flow -- navigation, in-place turns, traffic
-light waits, the inspection stop with a faked detection result and the spoken
-announcement -- without saving anything and without needing any model.
+Walks the inspection route (config/<backend>_screenshot_cycle.yaml by
+default) over and over to demonstrate the whole flow -- navigation, in-place
+turns, traffic light waits, the inspection stop with a faked detection result
+and the spoken announcement -- without saving anything and without needing
+any model.
 
 Compared with capture_cycle.py:
     * no screenshots are taken,

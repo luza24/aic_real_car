@@ -2,8 +2,14 @@ TebLocalPlannerROS:
 
   max_vel_x: 0.4
   max_vel_x_backwards: 0.3
+  # The chassis is omnidirectional: the STM32 command frame carries vx, vy and
+  # wz, so the planner may translate sideways instead of only rotating towards
+  # the path. A non-zero max_vel_y also switches TEB to its holonomic robot
+  # model (velocities are no longer constrained to the x axis).
+  max_vel_y: 0.3
   max_vel_theta: 1.2
   acc_lim_x: 1.0
+  acc_lim_y: 1.0
   acc_lim_theta: 1.6
 
   footprint_model:
@@ -14,8 +20,13 @@ TebLocalPlannerROS:
   yaw_goal_tolerance: 0.12
   free_goal_vel: false
 
-  weight_kinematics_nh: 1000.0
-  weight_kinematics_forward_drive: 4.0
+  # Must be zero for a holonomic robot, otherwise the optimizer still penalises
+  # any velocity component that is not along the robot's heading and the
+  # lateral velocity stays at zero. forward_drive only biases the x axis, so
+  # keeping it makes the robot prefer driving forwards while still allowing
+  # strafing.
+  weight_kinematics_nh: 0.0
+  weight_kinematics_forward_drive: 0.0
 
   dt_ref: 0.3
   dt_hysteresis: 0.1

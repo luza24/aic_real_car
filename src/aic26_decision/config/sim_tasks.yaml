@@ -1,4 +1,6 @@
-# Inspection mission for the AIC26 Smart Community demo scene.
+# Simulation inspection mission for the AIC26 Smart Community demo scene.
+# Selected by mission.launch when backend:=sim (the default); the real-robot
+# counterpart is real_tasks.yaml.
 #
 # Each task is executed in order by mission_controller.py:
 #   type: goto           navigate to waypoint, then continue
@@ -6,12 +8,13 @@
 #   type: inspect        navigate, turn, dwell, trigger detection, report
 #   type: report         announce the collected results (no motion)
 #
-# The waypoint sequence mirrors config/screenshot_cycle.yaml (the dataset
+# The waypoint sequence mirrors config/sim_screenshot_cycle.yaml (the dataset
 # route) so the captured images are taken from the same viewpoints as the
-# real run. This file keeps the real detectors, screenshot_cycle fakes them.
+# simulation run. This file keeps the real detectors, screenshot_cycle fakes
+# them.
 #
 # Fields:
-#   waypoint   target name in waypoints.yaml
+#   waypoint   target name in sim_waypoints.yaml
 #   turn       rotate in place before waiting/detecting: "left", "right" or
 #              omitted (in place cmd_vel rotation, the navigation stack is not
 #              used); the waypoint heading is restored afterwards

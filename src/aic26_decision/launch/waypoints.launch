@@ -2,9 +2,18 @@
 <launch>
 
   <!-- Only the waypoint follower node. The world and navigation stack are
-       launched by the aic26_bringup waypoints launch file. -->
+       launched by the aic26_bringup waypoints launch file.
 
-  <arg name="waypoints_file" default="$(find aic26_decision)/config/waypoints.yaml"/>
+       backend selects the waypoint set:
+         sim   config/sim_waypoints.yaml
+         real  config/real_waypoints.yaml
+       waypoints_file can still be overridden explicitly. -->
+
+  <arg name="backend" default="sim"/>
+  <arg name="config_prefix"
+       default="$(eval 'real' if arg('backend') == 'real' else 'sim')"/>
+  <arg name="waypoints_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
   <!-- start-up delay (s) applied to the node; 0 disables the wait -->
   <arg name="node_delay"     default="0.0"/>
 
@@ -16,7 +25,7 @@
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
     <param name="turn_settle"     value="0.5"/>
-    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_speed"      value="1.6"/>
     <param name="turn_tolerance"  value="0.05"/>
     <param name="turn_timeout"    value="20.0"/>
     <!-- nodes wait for move_base / tf instead of depending on launch order -->
