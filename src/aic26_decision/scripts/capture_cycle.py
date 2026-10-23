@@ -81,11 +81,11 @@ class ScreenshotCycle(RobotDriver):
 
     # ------------------------------------------------------------------ io
     def load_waypoints(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return {w["name"]: w for w in yaml.safe_load(f)["waypoints"]}
 
     def load_stops(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return yaml.safe_load(f)["waypoints"]
 
     def on_image(self, msg):

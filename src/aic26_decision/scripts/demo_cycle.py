@@ -13,7 +13,7 @@ Compared with capture_cycle.py:
     * the sky box time moves on by ~sky_step hours (default 4.5) after every
       pass, so the demo keeps cycling through day / night lighting.
 
-    pub : /speech               (std_msgs/String, announcement)
+    pub : /speech               (std_msgs/String, Chinese announcement)
     pub : /perception/result    (std_msgs/String, json, faked vision output)
     pub : /perception/detect    (std_msgs/String, detection trigger)
     sub : /traffic_light/state  (aic26_msgs/TrafficLightState, sim truth)
@@ -45,7 +45,10 @@ except ImportError:
 class DemoCycle(RobotDriver):
     def __init__(self):
         light_topic = rospy.get_param('~light_topic', '/traffic_light/state')
-        super(DemoCycle, self).__init__(light_topic=light_topic)
+        super(DemoCycle, self).__init__(
+            light_topic=light_topic,
+            speech_topic=rospy.get_param('~speech_topic', '/speech'),
+            speech_language=rospy.get_param('~speech_language', 'zh'))
 
         self.waypoints = self.load_waypoints(
             rospy.get_param('~waypoints_file'))
@@ -57,8 +60,6 @@ class DemoCycle(RobotDriver):
         self.sky_step = rospy.get_param('~sky_step', 4.5)
         self.day_night_script = self.find_day_night_script()
 
-        self.speech_pub = rospy.Publisher(
-            rospy.get_param('~speech_topic', '/speech'), String, queue_size=10)
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
             String, queue_size=10)
@@ -68,22 +69,14 @@ class DemoCycle(RobotDriver):
 
     # ---------------------------------------------------------------- input
     def load_waypoints(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return {w["name"]: w for w in yaml.safe_load(f)["waypoints"]}
 
     def load_stops(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return yaml.safe_load(f)["waypoints"]
 
     # ---------------------------------------------------------------- output
-    def speak(self, text):
-        if not text:
-            return
-        msg = String()
-        msg.data = text
-        self.speech_pub.publish(msg)
-        rospy.loginfo("speak: %s", text)
-
     def fake_vision(self, stop):
         """Publish the planned result and announce it like the mission."""
         result = stop.get("result")
@@ -106,22 +99,8 @@ class DemoCycle(RobotDriver):
         self.result_pub.publish(msg)
         rospy.loginfo("fake result: %s", result)
 
-        self.speak(self.build_message(payload))
-
-    def build_message(self, payload):
-        target = payload.get("target")
-        if target == "people":
-            total = payload.get("total", 0)
-            intruder = payload.get("intruder", 0)
-            if intruder:
-                return ("Community has %d people, %d non-community "
-                        "people found." % (total, intruder))
-            return "Community has %d people, no non-community people." % total
-        if target == "car":
-            plate = payload.get("plate", "")
-            if plate:
-                return "Car here has plate %s." % plate
-        return ""
+        # the shared helper keeps the demo wording identical to the mission
+        self.announce_result(target, payload)
 
     # ------------------------------------------------------------------ tour
     def visit(self, stop):

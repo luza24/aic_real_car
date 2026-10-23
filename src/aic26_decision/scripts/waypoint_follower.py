@@ -25,7 +25,7 @@ class WaypointFollower(RobotDriver):
         super(WaypointFollower, self).__init__(light_topic=None)
 
     def load_waypoints(self, path):
-        with open(path) as f:
+        with open(path, encoding='utf-8') as f:
             return yaml.safe_load(f)["waypoints"]
 
     def run(self):

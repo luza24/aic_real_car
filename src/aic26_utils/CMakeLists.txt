@@ -5,10 +5,11 @@ find_package(catkin REQUIRED COMPONENTS
   cv_bridge
   rospy
   sensor_msgs
+  std_msgs
 )
 
 catkin_package(
-  CATKIN_DEPENDS cv_bridge rospy sensor_msgs
+  CATKIN_DEPENDS cv_bridge rospy sensor_msgs std_msgs
 )
 
 include_directories(
@@ -17,6 +18,12 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   scripts/camera_view.py
+  scripts/speech_broadcaster.py
+  scripts/kokoro_worker.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(PROGRAMS scripts/setup_kokoro.sh
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

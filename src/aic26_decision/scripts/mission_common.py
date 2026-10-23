@@ -16,6 +16,11 @@ The one entry point the nodes use is :class:`RobotDriver`, which wraps
 and a :meth:`RobotDriver.wait_ready` start-up gate so the nodes tolerate being
 launched before (or after) the simulation and the navigation stack.
 
+The module also owns the shared announcement helper: a checkpoint detection
+result is formatted into one sentence by :func:`format_result_message` and
+published on ``/speech`` (std_msgs/String) by :class:`SpeechAnnouncer`, so
+mission_controller and demo_cycle speak the same text in the same language.
+
 Only rospy, actionlib, tf and the ROS messages are used, so the module
 also imports cleanly without a running master (handy for unit tests).
 """
@@ -28,6 +33,7 @@ import tf
 import tf.transformations
 from geometry_msgs.msg import Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import String
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -40,6 +46,104 @@ GREEN = 'GREEN'
 
 TURN_LEFT = 1.570796
 TURN_RIGHT = -1.570796
+
+LANGUAGES = ('zh', 'en')
+
+# Announcement templates. The Chinese wording is the default; the English
+# texts are kept so a run can switch back with ~speech_language.
+RESULT_MESSAGES = {
+    'zh': {
+        'people_intruder': '本区域共检测到 %d 人，其中 %d 人为非社区人员。',
+        'people_clear': '本区域共检测到 %d 人，未发现非社区人员。',
+        'car_plate': '检测到车辆，车牌号为 %s。',
+        'car_no_plate': '检测到车辆，但未能识别车牌。',
+    },
+    'en': {
+        'people_intruder': ('Community has %d people, %d non-community '
+                            'people found.'),
+        'people_clear': 'Community has %d people, no non-community people.',
+        'car_plate': 'Car here has plate %s.',
+        'car_no_plate': 'Car here but the plate was not recognised.',
+    },
+}
+
+
+def normalize_plate(plate):
+    """Strip separators that make the TTS pause inside a plate number."""
+    text = str(plate or '')
+    for sep in ('·', '•', '.'):
+        text = text.replace(sep, '')
+    return ''.join(text.split())
+
+
+def format_result_message(target, payload, language='zh'):
+    """Turn one detection payload into one announcement sentence.
+
+    Returns an empty string when there is no usable result, so callers can
+    stay silent instead of announcing a stale or made-up value. The payloads
+    are the json objects published by the aic26_perception detectors.
+    """
+    if not isinstance(payload, dict) or not payload:
+        return ''
+    if language not in RESULT_MESSAGES:
+        language = 'zh'
+    text = RESULT_MESSAGES[language]
+
+    if target == 'people':
+        if 'total' not in payload:
+            return ''
+        try:
+            total = max(0, int(payload.get('total') or 0))
+            intruder = max(0, int(payload.get('intruder') or 0))
+        except (TypeError, ValueError):
+            return ''
+        if intruder:
+            return text['people_intruder'] % (total, intruder)
+        return text['people_clear'] % total
+
+    if target == 'car':
+        # total == 0 means no car was seen, not "a car without a plate"
+        if 'total' in payload:
+            try:
+                if int(payload.get('total') or 0) <= 0:
+                    return ''
+            except (TypeError, ValueError):
+                return ''
+        plate = normalize_plate(payload.get('plate', ''))
+        if plate:
+            return text['car_plate'] % plate
+        return text['car_no_plate']
+
+    return ''
+
+
+class SpeechAnnouncer(object):
+    """Publish plain-text announcements on one std_msgs/String topic."""
+
+    def __init__(self, topic, language='zh', enabled=True):
+        if language not in LANGUAGES:
+            rospy.logwarn("unknown speech language %r, using zh", language)
+            language = 'zh'
+        self.language = language
+        self.enabled = bool(enabled) and bool(topic)
+        self.pub = None
+        if self.enabled:
+            self.pub = rospy.Publisher(topic, String, queue_size=10)
+
+    def speak(self, text):
+        """Publish ``text``; empty announcements are dropped as well."""
+        if not self.enabled or not text:
+            return False
+        msg = String()
+        msg.data = text
+        self.pub.publish(msg)
+        rospy.loginfo("speak: %s", text)
+        return True
+
+    def announce_result(self, target, payload):
+        """Announce one detection payload (silent when it has no data)."""
+        return self.speak(
+            format_result_message(target, payload, self.language))
 
 
 def wrap_angle(angle):
@@ -77,7 +181,8 @@ class RobotDriver(object):
     can be launched in any order relative to the rest of the bringup.
     """
 
-    def __init__(self, light_topic=None, on_light=None):
+    def __init__(self, light_topic=None, on_light=None, speech_topic=None,
+                 speech_language='zh', speech_enabled=True):
         self.listener = tf.TransformListener()
         self.cmd_pub = rospy.Publisher(
             rospy.get_param('~cmd_topic', '/cmd_vel'), Twist, queue_size=10)
@@ -110,9 +215,30 @@ class RobotDriver(object):
             rospy.logwarn("aic26_msgs/TrafficLightState missing, "
                           "traffic lights are treated as green")
 
+        # Optional /speech output. Nodes that do not announce leave this
+        # unset, so they keep the same publishers as before.
+        self.speech_language = speech_language
+        self.announcer = None
+        if speech_topic:
+            self.announcer = SpeechAnnouncer(
+                speech_topic, speech_language, speech_enabled)
+
     # ------------------------------------------------------------ callbacks
     def on_light(self, msg):
         self.lights[msg.model_name] = msg.state
+
+    # --------------------------------------------------------------- speech
+    def speak(self, text):
+        """Announce ``text`` when a speech topic was configured."""
+        if self.announcer is None:
+            return False
+        return self.announcer.speak(text)
+
+    def announce_result(self, target, payload):
+        """Announce a checkpoint result; silent when there is no payload."""
+        if self.announcer is None:
+            return False
+        return self.announcer.announce_result(target, payload)
 
     # ------------------------------------------------------------- start-up
     def wait_ready(self, require_nav=True):

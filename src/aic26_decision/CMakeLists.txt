@@ -27,3 +27,7 @@ catkin_install_python(PROGRAMS
   scripts/mission_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_nosetests(test/test_speech_messages.py)
+endif()

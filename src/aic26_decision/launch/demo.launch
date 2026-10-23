@@ -18,6 +18,8 @@
   <arg name="waypoints_file"
        default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
   <arg name="sky_step"       default="4.5"/>
+  <!-- language of the /speech announcements: zh or en -->
+  <arg name="speech_language" default="zh"/>
   <!-- start-up delay (s) applied to the node; 0 disables the wait -->
   <arg name="node_delay"     default="0.0"/>
 
@@ -27,6 +29,7 @@
     <param name="route_file"     value="$(arg route_file)"/>
     <param name="waypoints_file" value="$(arg waypoints_file)"/>
     <param name="speech_topic"   value="/speech"/>
+    <param name="speech_language" value="$(arg speech_language)"/>
     <param name="result_topic"   value="/perception/result"/>
     <param name="detect_topic"   value="/perception/detect"/>
     <param name="light_topic"    value="/traffic_light/state"/>

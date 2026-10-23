@@ -26,7 +26,9 @@
 #   wait       max seconds to wait for GREEN at a traffic light (default 30)
 #   light      traffic light model to watch, e.g. traffic_light_1
 #   target     detection target name sent to the perception node
-#   message    announcement template
+#   announce   false skips the /speech result announcement (default true)
+#   message    announcement for report tasks; inspection results are
+#              generated in Chinese by mission_common
 #
 # People groups:
 #   p1,p3,p5,p7        left of station_2
@@ -127,4 +129,4 @@ tasks:
 
   - name: "summarize"
     type: report
-    message: "Inspection complete, reporting results."
+    message: "检查完成，正在汇报结果。"

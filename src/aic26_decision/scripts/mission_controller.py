@@ -7,21 +7,27 @@ to each waypoint, optionally turn in place to face the target, wait at
 traffic lights until they are GREEN, trigger the vision detectors and
 announce the results.
 
-    pub : /speech                (std_msgs/String)
+    pub : /speech                (std_msgs/String, Chinese announcement)
     pub : /perception/detect     (std_msgs/String, detection trigger)
     sub : /perception/traffic_light (aic26_msgs/TrafficLightState, vision)
     sub : /traffic_light/state   (aic26_msgs/TrafficLightState, sim truth)
     sub : /perception/result     (std_msgs/String, json detection result)
 
-The motion / rotation / traffic-light logic comes from mission_common, shared
-with the other aic26_decision nodes; this node only adds the task list, the
-speech and the detection result bookkeeping.
+The motion / rotation / traffic-light logic and the announcement helper come
+from mission_common, shared with the other aic26_decision nodes; this node
+only adds the task list and the detection result bookkeeping. An inspect task
+is announced only when a fresh result exists, and a task can set
+``announce: false`` to inspect without speaking.
 
 Task types (config/<backend>_tasks.yaml):
     goto           navigate to the waypoint, then continue
     traffic_light  turn (optional), wait at the stop line until GREEN, pass
     inspect        navigate, turn, dwell, trigger detection, report
     report         announce a collected result (no motion)
+
+An inspect task with ``announce: false`` still triggers its detector but
+does not publish the result on /speech; a task without a fresh result is
+silent either way.
 
 With ``~gui`` set, a small Tkinter panel is started as well: it shows the
 latest annotated detection frame (boxes drawn) and a text summary, and writes
@@ -47,7 +53,8 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mission_common import GREEN, RobotDriver      # noqa: E402
+from mission_common import (GREEN, RobotDriver,   # noqa: E402
+                            format_result_message)
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -80,15 +87,16 @@ def gui_scale(default=1.0):
 
 class MissionController(RobotDriver):
     def __init__(self):
-        super(MissionController, self).__init__(light_topic=None)
+        super(MissionController, self).__init__(
+            light_topic=None,
+            speech_topic=rospy.get_param('~speech_topic', '/speech'),
+            speech_language=rospy.get_param('~speech_language', 'zh'))
 
         self.vision_states = {}   # light model -> state from vision
         self.truth_states = {}    # light model -> state from sim truth
         self.results = {}         # detection results, keyed by target
         self.light_fallback = rospy.get_param('~light_fallback', '')
 
-        self.speech_pub = rospy.Publisher(
-            rospy.get_param('~speech_topic', '/speech'), String, queue_size=10)
         self.detect_pub = rospy.Publisher(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, queue_size=10)
@@ -153,30 +161,6 @@ class MissionController(RobotDriver):
         return 'UNKNOWN'
 
     # ---------------------------------------------------------------- output
-    def speak(self, text):
-        msg = String()
-        msg.data = text
-        self.speech_pub.publish(msg)
-        rospy.loginfo("speak: %s", text)
-
-    def build_message(self, task):
-        # people tasks report the running totals, others use the fixed text
-        target = task.get("target")
-        if target == "people":
-            res = self.result_for("people")
-            total = res.get("total", 0)
-            intruder = res.get("intruder", 0)
-            if intruder:
-                return ("Community has %d people, %d non-community "
-                        "people found." % (total, intruder))
-            return "Community has %d people, no non-community people." % total
-        if target == "car":
-            res = self.result_for("car")
-            plate = res.get("plate", "")
-            if plate:
-                return "Car here has plate %s." % plate
-        return task.get("message", "inspection finished")
-
     def trigger_detect(self, target):
         """Ask the perception nodes for ``target`` and let them settle.
 
@@ -238,7 +222,12 @@ class MissionController(RobotDriver):
                 # stop, not the one before it
                 self.results.pop(target, None)
                 self.trigger_detect(target)
-            self.speak(self.build_message(task))
+                if task.get("announce", True):
+                    # mission_common renders the sentence; a missing result
+                    # stays silent instead of announcing stale data
+                    self.speak(format_result_message(
+                        target, self.result_for(target),
+                        self.speech_language))
             self.stop_detect()
 
         # face the waypoint heading again so the next go_to starts from the
@@ -248,9 +237,10 @@ class MissionController(RobotDriver):
             rospy.logwarn("could not restore heading at %s, holding", name)
 
     def run(self):
-        with open(rospy.get_param("~tasks_file")) as f:
+        with open(rospy.get_param("~tasks_file"), encoding='utf-8') as f:
             tasks = yaml.safe_load(f)["tasks"]
-        with open(rospy.get_param("~waypoints_file")) as f:
+        with open(rospy.get_param("~waypoints_file"),
+                  encoding='utf-8') as f:
             waypoints = {w["name"]: w for w in yaml.safe_load(f)["waypoints"]}
 
         self.wait_ready()
@@ -374,7 +364,7 @@ class ResultViewer(object):
         """Write via a temp file + rename so readers never see a half file."""
         tmp = path + '.tmp'
         try:
-            with open(tmp, 'w') as f:
+            with open(tmp, 'w', encoding='utf-8') as f:
                 f.write(text)
             os.rename(tmp, path)
         except OSError as err:

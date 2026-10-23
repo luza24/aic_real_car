@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Speech output: /speech text -> Kokoro TTS -> Bluetooth speaker.
+
+       This is a standalone launch on purpose: it is not part of the bringup
+       mission launch. Start it next to a running stack, e.g.
+
+           pactl list short sinks | grep bluez
+           roslaunch aic26_utils speech.launch \
+               sink:=bluez_output.XX_XX_XX_XX_XX_XX.1
+
+       Kokoro needs Python 3.10-3.12 while ROS Noetic uses 3.8, so the node
+       runs the worker in the venv created by scripts/setup_kokoro.sh
+       (default ~/aic26_kokoro_venv). See aic26_utils/README.md. -->
+
+  <arg name="speech_topic" default="/speech"/>
+  <arg name="enabled" default="true"/>
+  <arg name="tts_python"
+       default="$(env HOME)/aic26_kokoro_venv/bin/python"/>
+  <arg name="worker_script"
+       default="$(find aic26_utils)/scripts/kokoro_worker.py"/>
+  <!-- PulseAudio sink of the Bluetooth speaker; empty = default output -->
+  <arg name="sink" default=""/>
+  <!-- zf_xiaoxiao, zf_xiaobei, zf_xiaoni, zf_xiaoyi, zm_yunjian, ... -->
+  <arg name="voice" default="zf_xiaoxiao"/>
+  <!-- z = Mandarin Chinese -->
+  <arg name="lang" default="z"/>
+  <arg name="speed" default="1.0"/>
+  <!-- torch threads; 2 leaves the N100 cores for perception and navigation -->
+  <arg name="threads" default="2"/>
+  <arg name="player" default="paplay"/>
+  <arg name="volume" default="100"/>
+
+  <node name="speech_broadcaster" pkg="aic26_utils"
+        type="speech_broadcaster.py" output="screen">
+    <param name="speech_topic"  value="$(arg speech_topic)"/>
+    <param name="enabled"       value="$(arg enabled)"/>
+    <param name="tts_python"    value="$(arg tts_python)"/>
+    <param name="worker_script" value="$(arg worker_script)"/>
+    <param name="sink"          value="$(arg sink)"/>
+    <param name="voice"         value="$(arg voice)"/>
+    <param name="lang"          value="$(arg lang)"/>
+    <param name="speed"         value="$(arg speed)"/>
+    <param name="threads"       value="$(arg threads)"/>
+    <param name="player"        value="$(arg player)"/>
+    <param name="volume"        value="$(arg volume)"/>
+  </node>
+
+</launch>

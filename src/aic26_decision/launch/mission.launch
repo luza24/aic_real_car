@@ -20,6 +20,8 @@
   <!-- show the detection result GUI and write the results to disk -->
   <arg name="gui"            default="true"/>
   <arg name="results_dir"    default="$(find aic26_perception)/results"/>
+  <!-- language of the /speech recognition announcements: zh or en -->
+  <arg name="speech_language" default="zh"/>
   <!-- optional generic vision light name for hardware runs without sim truth -->
   <arg name="light_fallback" default=""/>
   <!-- start-up delay (s) applied to the node, so the caller can wait for the
@@ -38,6 +40,7 @@
     <param name="result_topic"  value="/perception/result"/>
     <param name="detect_topic"  value="/perception/detect"/>
     <param name="speech_topic"  value="/speech"/>
+    <param name="speech_language" value="$(arg speech_language)"/>
     <param name="gui"           value="$(arg gui)"/>
     <param name="results_dir"   value="$(arg results_dir)"/>
     <param name="detect_wait"   value="1.0"/>
