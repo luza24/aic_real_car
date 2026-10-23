@@ -63,6 +63,9 @@ export HF_HUB_OFFLINE=1
 
 ## Run
 
+On this PC, double-click `run_bridge.cmd` for the live car `/speech`, or run
+the commands directly:
+
 ```bash
 cd C:/Users/luza/Desktop/aic26_speech_pc
 
@@ -72,7 +75,15 @@ python speech_bridge.py --demo
 
 # 2) Live car /speech
 python speech_bridge.py --ssh-host vehicle
+
+# One-click wrapper (same as the live command)
+run_bridge.cmd
+run_bridge.cmd --demo
 ```
+
+The car does **not** need Kokoro or a Bluetooth speaker for this mode: it
+only publishes `/speech`; this PC synthesizes and plays it. Do not start the
+car's `speech.launch` at the same time.
 
 When the car's ROS master is running, publish a test message from any machine:
 
