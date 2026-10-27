@@ -11,7 +11,7 @@
   <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
   <arg name="use_rviz" default="true"/>
   <arg name="show_view" default="true"/>
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>

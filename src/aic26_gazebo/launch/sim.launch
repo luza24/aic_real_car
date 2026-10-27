@@ -6,6 +6,16 @@
   <arg name="show_view" default="true"/>
   <arg name="view_width" default="640"/>
   <arg name="view_height" default="360"/>
+  <!-- This machine has no usable GPU (N100 on kernel 5.15), so gazebo renders
+       the camera sensor with llvmpipe on the CPU. 1280x720@30 saturates
+       almost two cores; the sim defaults to a smaller image. capture.launch
+       raises them back to the full dataset resolution. -->
+  <arg name="camera_image_width"  default="640"/>
+  <arg name="camera_image_height" default="360"/>
+  <arg name="camera_image_rate"   default="15.0"/>
+  <!-- The day/night node still applies the sky; its Tk slider is off by
+       default so the sim only transfers Gazebo and RViz. -->
+  <arg name="day_night_gui" default="false"/>
   <arg name="day_night_gui_delay" default="12.0"/>
 
   <env name="GAZEBO_PLUGIN_PATH"
@@ -29,7 +39,7 @@
   </group>
 
   <param name="robot_description"
-         command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
+         command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro camera_image_width:=$(arg camera_image_width) camera_image_height:=$(arg camera_image_height) camera_image_rate:=$(arg camera_image_rate)"/>
 
   <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
         args="-param robot_description -urdf -model armbot -x 1.6 -y 1.7 -z 0 -Y 3.141592"
@@ -52,9 +62,12 @@
     </rosparam>
   </node>
 
+  <!-- With the slider off the node runs its one-shot path, which needs the
+       day/night mode (or /sky_time) to know which sky to apply. -->
   <node pkg="aic26_gazebo" type="day_night.py" name="day_night_gui" output="screen"
         launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
-    <param name="gui" value="true"/>
+    <param name="gui" value="$(arg day_night_gui)"/>
+    <param name="mode" value="$(arg day_night)"/>
   </node>
 
   <!-- camera_view.py: the stock image_view keeps its 320x240 GTK window when

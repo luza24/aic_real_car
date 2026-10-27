@@ -16,8 +16,11 @@ except ImportError:  # pragma: no cover - exercised on a bare Python
     serial = None
 
 CHASSIS_HEADER = b'\xaa\xbb'
-# Command: AA BB 0A 12 02 + x,y,yaw + checksum
+# Command: AA BB 0A 12 02 + x,y,yaw + filler (0x00)
 CHASSIS_COMMAND = b'\xaa\xbb\x0a\x12\x02'
+# Legacy init handshake: 0x11 followed by eight zero bytes. The STM32
+# ignores speed frames until this has been sent after motor power-up.
+CHASSIS_INIT = b'\x11' + b'\x00' * 8
 # Feedback: AA BB 0A 0A + x,y,yaw + filler + checksum
 CHASSIS_FEEDBACK_HEADER = b'\xaa\xbb\x0a\x0a'
 CHASSIS_FEEDBACK_SIZE = 12
@@ -52,6 +55,17 @@ def feedback_dt(measured, nominal, max_dt):
     if measured > 2.5 * nominal:
         return min(float(measured), max(nominal, float(max_dt)))
     return nominal
+
+
+def blend_rates(encoder_rate, gyro_rate, gyro_weight):
+    """Return the yaw rate from the encoder rate and the gyro rate."""
+    weight = clamp(gyro_weight, 0.0, 1.0)
+    return (1.0 - weight) * encoder_rate + weight * gyro_rate
+
+
+def update_bias(bias, sample, alpha):
+    """Fold one standstill gyro sample into the bias estimate."""
+    return bias + clamp(alpha, 0.0, 1.0) * (sample - bias)
 
 
 def imu_yaw_offset(imu_yaw, odom_yaw):

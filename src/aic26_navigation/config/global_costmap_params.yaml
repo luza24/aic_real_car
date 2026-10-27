@@ -16,5 +16,8 @@ global_costmap:
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
   inflation_layer:
-    inflation_radius: 0.09
+    # Must stay above the footprint inscribed radius (0.136 m). 0.20 covers
+    # the full body width, leaves a distance gradient out to 20 cm and still
+    # fits the 0.56 m narrow lanes of the field map.
+    inflation_radius: 0.20
     cost_scaling_factor: 10.0

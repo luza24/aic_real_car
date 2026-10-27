@@ -12,7 +12,7 @@
   <arg name="robot_state_publisher" default="true"/>
   <arg name="teleop" default="false"/>
 
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="publish_tf" default="true"/>
   <arg name="initial_x" default="1.6"/>
   <arg name="initial_y" default="1.7"/>

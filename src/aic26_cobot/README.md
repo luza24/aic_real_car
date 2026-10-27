@@ -65,10 +65,10 @@ this removes the pose jumps that otherwise appear as RViz jitter. Small
 feedback values below `linear_deadband` / `angular_deadband` are treated as
 zero at standstill.
 
-`use_imu_yaw:=true` is safe again: the IMU offset is taken relative to the
-configured start yaw (so a start yaw of `pi` is preserved instead of being
-pulled to zero), and corrections are low-pass filtered and applied only
-`imu_correction_rate` times per second with a clamped step.
+The chassis fuses the WIT gyro z rate (`use_imu_yaw`, enabled by default)
+with a standstill bias estimate; the encoder rate supplies a small share.
+This is the same rate-only fusion the old car_bringup EKF used; the magnetic
+yaw is not used.
 
 If a consumer expects `/odom_raw`, remap it in the consumer launch file instead
 of duplicating the odometry stream:
@@ -125,8 +125,8 @@ Useful switches:
 # disable individual devices
 roslaunch aic26_cobot hardware.launch camera:=false
 
-# enable the IMU yaw fusion (off by default on real hardware)
-roslaunch aic26_cobot hardware.launch use_imu_yaw:=true
+# disable the gyro fusion (enabled by default on real hardware)
+roslaunch aic26_cobot hardware.launch use_imu_yaw:=false
 
 # enable the keyboard teleop node
 roslaunch aic26_cobot hardware.launch teleop:=true

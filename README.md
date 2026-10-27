@@ -194,7 +194,7 @@ for slower machines; on a fast machine use e.g. `nav_delay:=5 task_delay:=10`.
 
 | Argument | Default | Meaning |
 | --- | --- | --- |
-| `use_imu_yaw` | `false` | fuse the WIT yaw into the chassis odometry (off by default; magnetic yaw is noisy indoors) |
+| `use_imu_yaw` | `true` | fuse the WIT gyro z rate into the chassis odometry (magnetic yaw is not used; bias is estimated at standstill) |
 | `chassis_port` | `/dev/carserial` | STM32 chassis serial device |
 | `imu_port` | `/dev/imu` | WIT IMU serial device |
 | `lidar_port` | `/dev/lslidar` | N10_P lidar serial device |
@@ -250,12 +250,13 @@ coordinates as the simulated spawn pose `(1.6, 1.7, pi)`. See
 `src/aic26_cobot/README.md` for the device ports and udev rules.
 
 The chassis feedback is integrated at the measured 20 Hz frame rate rather
-than the USB arrival time (the adapter delivers frames in bursts), and IMU yaw
-corrections are filtered and limited to `imu_correction_rate` updates per
-second. The IMU offset is relative to the configured start yaw, so enabling
-`use_imu_yaw:=true` does not rotate the robot back to yaw zero. This keeps the
-odometry TF smooth, which in turn stops GMAPPING/AMCL from publishing
-high-frequency pose corrections that look like a shaking robot in RViz.
+than the USB arrival time (the adapter delivers frames in bursts). The chassis
+fuses the WIT gyro z rate into the yaw estimate by default (`use_imu_yaw`),
+with a standstill bias estimate and a small encoder share. This is the same
+rate-only fusion the old car_bringup EKF used; the magnetic yaw is not used.
+This keeps the odometry TF smooth, which in turn stops GMAPPING/AMCL from
+publishing high-frequency pose corrections that look like a shaking robot in
+RViz.
 
 AMCL is tuned for the N100 in `aic26_navigation/config/amcl_params.yaml`:
 300-1200 particles, 45 laser beams, `kld_err: 0.08` and a 2 Hz particle-cloud
@@ -373,6 +374,9 @@ names. The table lists both producers where they differ.
 | `/speech` | `std_msgs/String` | mission_controller and demo_cycle |
 
 ## GUI over SSH and HiDPI displays
+
+Windows one-click (VcXsrv) and NoMachine launchers, plus the
+real-vs-sim GUI matrix: see `src/aic26_bringup/tools/README_GUI.md`.
 
 If the robot model in RViz stays still while the map/costmaps move, set
 **Global Options → Fixed Frame** to `map` (not `base_footprint`, `base_link` or

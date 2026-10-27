@@ -11,7 +11,7 @@
   <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
   <arg name="use_rviz" default="false"/>
   <arg name="show_view" default="true"/>
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
@@ -37,6 +37,10 @@
     <arg name="day_night" value="$(arg day_night)"/>
     <arg name="sky_time" value="$(arg sky_time)"/>
     <arg name="show_view" value="$(arg show_view)"/>
+    <!-- dataset capture keeps the full simulated camera resolution -->
+    <arg name="sim_camera_width" value="1280"/>
+    <arg name="sim_camera_height" value="720"/>
+    <arg name="sim_camera_rate" value="30.0"/>
     <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
     <arg name="chassis_port" value="$(arg chassis_port)"/>
     <arg name="chassis_initial_x" value="$(arg initial_pose_x)"/>

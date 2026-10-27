@@ -40,8 +40,10 @@
               command="load"/>
     <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
               command="load"/>
+    <!-- global_planner_params.yaml already has a GlobalPlanner root key;
+         adding ns="GlobalPlanner" here would double the namespace. -->
     <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
-              command="load" ns="GlobalPlanner"/>
+              command="load"/>
     <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
               command="load"/>
 

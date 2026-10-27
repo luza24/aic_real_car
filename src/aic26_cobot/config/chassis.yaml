@@ -22,8 +22,11 @@ initial_yaw: 3.141592
 # 20 Hz matches the STM32 feedback stream (measured ~19.6 Hz) and the
 # simulation odometry. The serial adapter delivers frames in bursts, so the
 # node integrates each frame with 1/feedback_rate instead of the wall-clock
-# arrival interval.
+# arrival interval. publish_rate is the odom/TF rate; cmd_rate is the rate at
+# which speed frames are written to the STM32 (the old working sender used
+# about 10 Hz).
 publish_rate: 30.0
+cmd_rate: 10.0
 feedback_rate: 20.0
 feedback_dt_max: 0.2
 
@@ -39,25 +42,30 @@ cmd_timeout: 0.5
 # Do not publish a stale chassis velocity for longer than this.
 feedback_timeout: 1.0
 
-# Some STM32 UART parsers want a short gap between bytes. 0.0 writes the
-# complete frame in one call; use 0.0004 if the chassis drops frames.
-byte_delay: 0.0
+# The STM32 UART parser drops whole commands when the 12 bytes arrive in one
+# write; the old car_bringup sender used a 0.4 ms gap between bytes.
+byte_delay: 0.0004
 
-linear_scale: 1.0
-angular_scale: 0.96
+# Legacy 0x11 + 8x00 handshake, sent after opening the port and on reconnect.
+# Without it the motors ignore speed frames until the motor power is cycled.
+send_init: true
+init_delay: 0.001
+
+linear_cmd_scale: 1.0
+angular_cmd_scale: 1.0
+linear_odom_scale: 1.0
+angular_odom_scale: 1.0
 max_linear: 0.5
 max_angular: 1.5
 
-# Fuse the WIT yaw into the chassis yaw integration. Disabled by default:
-# the WIT yaw is magnetic and noisy indoors. When enabled, the correction is
-# low-pass filtered and applied only imu_correction_rate times per second
-# with a small, clamped step, so it cannot shake the odom TF at the 20 Hz
-# feedback rate.
-use_imu_yaw: false
+# Fuse the WIT gyro z rate into the chassis yaw integration. The gyro is
+# rate-only (not the magnetic yaw), so it is stable indoors. A standstill
+# bias estimate is folded in, and a small encoder share keeps the long-term
+# scale honest. The old car_bringup EKF fused the same gyro z rate.
+use_imu_yaw: true
 imu_topic: /imu/data
 imu_timeout: 0.2
-imu_correction_gain: 0.1
-imu_correction_rate: 2.0
-imu_correction_deadband: 0.005
-imu_correction_max_step: 0.02
-imu_yaw_filter_alpha: 0.3
+imu_gyro_gain: 0.95
+imu_gyro_sign: 1.0
+imu_gyro_bias_alpha: 0.02
+imu_gyro_bias_limit: 0.15

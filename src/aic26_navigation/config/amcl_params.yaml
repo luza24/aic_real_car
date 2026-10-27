@@ -34,11 +34,11 @@ set_initial_pose: true
 initial_pose_x: 1.6
 initial_pose_y: 1.7
 initial_pose_a: 3.141592
-# Keep the requested start pose. The AMCL default is 0.25 (0.5 m standard
-# deviation), which lets the first scan pull the estimate several cm away
-# from the simulated spawn pose; that shows up as a different start position
-# in RViz. 0.0004 is a 2 cm / 1.1 degree standard deviation. If the robot is
-# placed at the start pose by hand with more error, raise these values.
-initial_cov_xx: 0.0004
-initial_cov_yy: 0.0004
-initial_cov_aa: 0.0004
+# The real robot is placed by hand; the start position can be off by
+# 0.1-0.2 m and several degrees. The old 0.0004 covariance (2 cm / 1.1 deg)
+# made AMCL trust the nominal (1.6, 1.7, pi) pose and ignore the scan
+# mismatch. 0.03 gives a 17 cm / 9.9 deg standard deviation so the first
+# scan can correct the placement while still keeping the estimate local.
+initial_cov_xx: 0.03
+initial_cov_yy: 0.03
+initial_cov_aa: 0.03

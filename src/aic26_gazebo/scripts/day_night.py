@@ -151,6 +151,11 @@ def run_gui():
 def run_once():
     time = rospy.get_param('~time', None)
     if time is None:
+        # The launch file writes /sky_time when a specific time of day was
+        # requested; the GUI honours it too, so the one-shot path must not
+        # overwrite it with the day/night shorthand.
+        time = rospy.get_param('/sky_time', None)
+    if time is None:
         mode = rospy.get_param('~mode', '')
         if mode not in MODE_TIME:
             rospy.logerr(

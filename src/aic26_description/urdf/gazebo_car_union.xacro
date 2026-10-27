@@ -2,29 +2,43 @@
 
 <robot name="armbot" xmlns:xacro="http://wiki.ros.org/xacro">
 
+  <!-- Simulated camera image size. The defaults keep the real-robot image
+       format; sim.launch overrides them with a smaller image to keep the
+       software renderer (llvmpipe, no GPU on the N100) from saturating the
+       CPU. Do not confuse these with the physical camera box properties in
+       gazebo_camera.xacro. -->
+  <xacro:arg name="camera_image_width" default="1280"/>
+  <xacro:arg name="camera_image_height" default="720"/>
+  <xacro:arg name="camera_image_rate" default="30.0"/>
+
   <xacro:include filename="gazebo_head.xacro"/>
   <xacro:include filename="gazebo_car.xacro"/>
   <xacro:include filename="gazebo_laser.xacro"/>
   <xacro:include filename="gazebo_camera.xacro"/>
   <xacro:include filename="gazebo_light.xacro"/>
 
-  <!-- The competition chassis is omnidirectional: the STM32 command frame
-       carries vx, vy and wz, and the navigation stack uses a holonomic TEB
-       configuration. libgazebo_ros_skid_steer_drive only reads linear.x and
-       angular.z, so it silently drops every strafing command. PlanarMove
-       executes the full twist (including linear.y) and still provides the
-       same /cmd_vel, /odom and odom -> base_footprint interface. -->
+  <!-- Keep the /cmd_vel and /odom interface while using a four-wheel
+       skid-steer drive. -->
   <gazebo>
-    <plugin name="mobile_base_controller" filename="libgazebo_ros_planar_move.so">
+    <plugin name="mobile_base_controller" filename="libgazebo_ros_skid_steer_drive.so">
+      <updateRate>100.0</updateRate>
+      <robotNamespace>/</robotNamespace>
+      <leftFrontJoint>front_left_wheel_joint</leftFrontJoint>
+      <rightFrontJoint>front_right_wheel_joint</rightFrontJoint>
+      <leftRearJoint>back_left_wheel_joint</leftRearJoint>
+      <rightRearJoint>back_right_wheel_joint</rightRearJoint>
+      <wheelSeparation>${wheel_y * 2}</wheelSeparation>
+      <wheelDiameter>${wheel_radius * 2}</wheelDiameter>
+      <robotBaseFrame>base_footprint</robotBaseFrame>
+      <torque>20</torque>
       <commandTopic>/cmd_vel</commandTopic>
       <odometryTopic>/odom</odometryTopic>
       <odometryFrame>odom</odometryFrame>
-      <robotBaseFrame>base_footprint</robotBaseFrame>
+      <broadcastTF>true</broadcastTF>
       <odometryRate>30.0</odometryRate>
-      <!-- Stop the model if /cmd_vel disappears (move_base crash, teleop
-           release, ...). Without this the planar-move plugin keeps applying
-           the last twist forever. -->
-      <cmdTimeout>0.5</cmdTimeout>
+      <covariance_x>0.001</covariance_x>
+      <covariance_y>0.001</covariance_y>
+      <covariance_yaw>0.01</covariance_yaw>
     </plugin>
   </gazebo>
 

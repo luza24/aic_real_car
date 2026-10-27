@@ -166,7 +166,11 @@ class DemoCycle(RobotDriver):
 
     # ------------------------------------------------------------------ run
     def run(self):
-        self.wait_ready()
+        if not self.wait_ready():
+            rospy.logerr("navigation prerequisites are not ready; "
+                         "demo cycle will not drive")
+            self.stop_motion()
+            return
         rospy.loginfo("demo cycle started, %d stops (Ctrl-C to stop)",
                       len(self.stops))
 

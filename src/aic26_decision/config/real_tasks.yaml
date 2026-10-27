@@ -48,7 +48,7 @@ tasks:
     type: traffic_light
     waypoint: "traffic_light_1"
     light: "traffic_light_1"
-    wait: 40
+    wait: 20
 
   - name: "people_b"
     type: inspect
@@ -58,6 +58,7 @@ tasks:
     target: "people"
     message: "Zone B people inspection finished."
 
+
   - name: "people_a"
     type: inspect
     waypoint: "station_2"
@@ -65,6 +66,7 @@ tasks:
     dwell: 2.0
     target: "people"
     message: "Zone A people inspection finished."
+    
 
   - name: "people_f"
     type: inspect
@@ -81,6 +83,11 @@ tasks:
     dwell: 2.0
     target: "people"
     message: "Zone C people inspection finished."
+  
+  - name: "corner"
+    type: goto
+    waypoint: "corner_5"
+  
 
   - name: "people_d"
     type: inspect
@@ -94,7 +101,7 @@ tasks:
     type: traffic_light
     waypoint: "traffic_light_2"
     light: "traffic_light_2"
-    wait: 40
+    wait: 20
 
   - name: "car_1"
     type: inspect

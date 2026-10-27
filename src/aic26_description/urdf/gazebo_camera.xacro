@@ -83,14 +83,14 @@
         <material>Gazebo/Indigo</material>
 
         <sensor type="camera" name="camera_node">
-            <update_rate>30.0</update_rate>
+            <update_rate>$(arg camera_image_rate)</update_rate>
 
             <camera name="head">
                 <horizontal_fov>1.570796</horizontal_fov>
 
                 <image>
-                    <width>1280</width>
-                    <height>720</height>
+                    <width>$(arg camera_image_width)</width>
+                    <height>$(arg camera_image_height)</height>
                     <format>R8G8B8</format>
                 </image>
 

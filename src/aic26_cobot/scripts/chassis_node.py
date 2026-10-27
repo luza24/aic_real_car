@@ -44,32 +44,42 @@ class ChassisNode(object):
         self.feedback_timeout = float(
             rospy.get_param('~feedback_timeout', 1.0))
         self.byte_delay = float(rospy.get_param('~byte_delay', 0.0))
+        # The STM32 needs a legacy 0x11 handshake after power-up; without it
+        # the motors ignore the speed frames. The old car_bringup sender used
+        # a 1 ms gap for the init bytes and 0.4 ms between command bytes.
+        self.send_init = bool(rospy.get_param('~send_init', True))
+        self.init_delay = max(
+            0.0, float(rospy.get_param('~init_delay', 0.001)))
+        self.cmd_rate = max(
+            1.0, float(rospy.get_param('~cmd_rate', 10.0)))
 
-        self.linear_scale = float(
-            rospy.get_param('~linear_scale', 1.0))
-        self.angular_scale = float(
-            rospy.get_param('~angular_scale', 0.96))
+        self.linear_cmd_scale = float(
+            rospy.get_param('~linear_cmd_scale', 1.0))
+        self.angular_cmd_scale = float(
+            rospy.get_param('~angular_cmd_scale', 1.0))
+        self.linear_odom_scale = float(
+            rospy.get_param('~linear_odom_scale', 1.0))
+        self.angular_odom_scale = float(
+            rospy.get_param('~angular_odom_scale', 1.0))
         self.max_linear = float(rospy.get_param('~max_linear', 0.5))
         self.max_angular = float(rospy.get_param('~max_angular', 1.5))
 
         self.use_imu_yaw = bool(
-            rospy.get_param('~use_imu_yaw', False))
+            rospy.get_param('~use_imu_yaw', True))
         self.imu_topic = rospy.get_param('~imu_topic', '/imu/data')
         self.imu_timeout = float(rospy.get_param('~imu_timeout', 0.2))
-        self.imu_correction_gain = float(
-            rospy.get_param('~imu_correction_gain', 0.1))
-        # Pull the magnetic yaw only a few times per second. Applying the
-        # correction at the full 20 Hz feedback rate is what makes RViz
-        # shake when the IMU heading is noisy.
-        self.imu_correction_rate = max(
-            0.0, float(rospy.get_param('~imu_correction_rate', 2.0)))
-        self.imu_correction_deadband = abs(float(
-            rospy.get_param('~imu_correction_deadband', 0.005)))
-        self.imu_correction_max_step = abs(float(
-            rospy.get_param('~imu_correction_max_step', 0.02)))
-        self.imu_yaw_filter_alpha = hw.clamp(
-            float(rospy.get_param('~imu_yaw_filter_alpha', 0.3)),
+        # The WIT gyro z rate is rate-only (not the magnetic yaw), so it is
+        # stable indoors. A standstill bias estimate is folded in, and a
+        # small encoder share keeps the long-term scale honest.
+        self.imu_gyro_gain = hw.clamp(
+            float(rospy.get_param('~imu_gyro_gain', 0.95)), 0.0, 1.0)
+        self.imu_gyro_sign = float(
+            rospy.get_param('~imu_gyro_sign', 1.0))
+        self.imu_gyro_bias_alpha = hw.clamp(
+            float(rospy.get_param('~imu_gyro_bias_alpha', 0.02)),
             0.0, 1.0)
+        self.imu_gyro_bias_limit = abs(float(
+            rospy.get_param('~imu_gyro_bias_limit', 0.15)))
 
         # The chassis sends one feedback frame at a fixed rate. The USB
         # adapter delivers those frames in bursts, so integrate each frame
@@ -97,14 +107,14 @@ class ChassisNode(object):
         self._last_odom_time = None
         self._last_feedback = (0.0, 0.0, 0.0)
         self._last_feedback_time = rospy.Time(0)
+        self._last_moving_feedback_time = rospy.Time.now()
+        self._nonzero_cmd_start = None
         self._cmd = (0.0, 0.0, 0.0)
         self._last_cmd_time = rospy.Time(0)
         self._enabled = True
-        self._imu_yaw = None
-        self._imu_yaw_filtered = None
-        self._imu_yaw_time = rospy.Time(0)
-        self._last_imu_correction = rospy.Time(0)
-        self._imu_offset = None
+        self._gyro = None
+        self._gyro_time = rospy.Time(0)
+        self._gyro_bias = 0.0
 
         self.serial = hw.SerialDevice(self.port, self.baud)
         self._open_serial()
@@ -131,19 +141,28 @@ class ChassisNode(object):
         self._reader.daemon = True
         self._reader.start()
 
-        period = rospy.Duration(1.0 / self.publish_rate)
-        self._cmd_timer = rospy.Timer(period, self._send_command)
-        self._odom_timer = rospy.Timer(period, self._publish_odom)
+        odom_period = rospy.Duration(1.0 / self.publish_rate)
+        cmd_period = rospy.Duration(1.0 / self.cmd_rate)
+        self._cmd_timer = rospy.Timer(cmd_period, self._send_command)
+        self._odom_timer = rospy.Timer(odom_period, self._publish_odom)
         rospy.on_shutdown(self._shutdown)
 
         rospy.loginfo(
             'chassis: %s @ %d, odom %s -> %s',
             self.port, self.baud, self.odom_frame, self.base_frame)
+        rospy.loginfo(
+            'chassis: init=%s cmd_rate=%.1f Hz byte_delay=%.4f s',
+            self.send_init, self.cmd_rate, self.byte_delay)
 
     def _open_serial(self):
         if self.serial.open():
             rospy.loginfo(
                 'chassis: opened %s at %d', self.port, self.baud)
+            # Bring the STM32 into command mode before sending any speed
+            # frame. This handshake is required after the motor power is
+            # switched on; the old car_bringup sender did the same.
+            if self.send_init:
+                self._send_init()
             # The STM32 may still hold the last frame from a previous process.
             self._stop_motors()
             return True
@@ -152,30 +171,31 @@ class ChassisNode(object):
             self.port, self.serial.last_error)
         return False
 
+    def _send_init(self):
+        """Send the legacy 0x11 + 8x00 chassis init handshake."""
+        for byte in hw.CHASSIS_INIT:
+            if not self.serial.write(bytes([byte])):
+                rospy.logwarn('chassis: init write failed')
+                return False
+            if self.init_delay > 0.0:
+                time.sleep(self.init_delay)
+        rospy.loginfo(
+            'chassis: sent init sequence (%d bytes)', len(hw.CHASSIS_INIT))
+        return True
+
     def _cmd_cb(self, msg):
         with self._lock:
             self._cmd = (msg.linear.x, msg.linear.y, msg.angular.z)
             self._last_cmd_time = rospy.Time.now()
 
     def _imu_cb(self, msg):
-        q = msg.orientation
-        _, _, yaw = tf.transformations.euler_from_quaternion(
-            (q.x, q.y, q.z, q.w))
+        if msg.angular_velocity_covariance[0] < 0.0:
+            with self._lock:
+                self._gyro = None
+            return
         with self._lock:
-            if self._imu_yaw_filtered is None:
-                self._imu_yaw_filtered = yaw
-            else:
-                delta = hw.wrap_radians(yaw - self._imu_yaw_filtered)
-                self._imu_yaw_filtered = hw.wrap_radians(
-                    self._imu_yaw_filtered +
-                    self.imu_yaw_filter_alpha * delta)
-            self._imu_yaw = yaw
-            self._imu_yaw_time = rospy.Time.now()
-            if self._imu_offset is None:
-                # Keep the odometry yaw at whatever pose the robot starts
-                # from. Subtracting the odom yaw is essential now that odom
-                # starts at pi (the Gazebo spawn yaw) instead of 0.
-                self._imu_offset = hw.imu_yaw_offset(yaw, self._pose[2])
+            self._gyro = self.imu_gyro_sign * msg.angular_velocity.z
+            self._gyro_time = rospy.Time.now()
 
     def _send_command(self, _event):
         now = rospy.Time.now()
@@ -190,11 +210,28 @@ class ChassisNode(object):
               (now - stamp).to_sec() > self.cmd_timeout):
             cmd = (0.0, 0.0, 0.0)
 
-        vx = cmd[0] * self.linear_scale
-        vy = cmd[1] * self.linear_scale
-        wz = cmd[2] * self.angular_scale
+        vx = cmd[0] * self.linear_cmd_scale
+        vy = cmd[1] * self.linear_cmd_scale
+        wz = cmd[2] * self.angular_cmd_scale
         frame = hw.encode_chassis_command(
             vx, vy, wz, self.max_linear, self.max_angular)
+
+        nonzero = (abs(vx) >= 0.05 or abs(vy) >= 0.05 or
+                   abs(wz) >= 0.05)
+        if enabled and nonzero:
+            with self._lock:
+                if self._nonzero_cmd_start is None:
+                    self._nonzero_cmd_start = now
+                moving = self._last_moving_feedback_time
+                started = self._nonzero_cmd_start
+            if (now - max(moving, started)).to_sec() > 1.0:
+                rospy.logwarn_throttle(
+                    2.0,
+                    'chassis: nonzero command but feedback is zero for '
+                    'over 1 s; check motor power and 0x11 init')
+        else:
+            with self._lock:
+                self._nonzero_cmd_start = None
 
         if not self.serial.is_open:
             return
@@ -243,8 +280,9 @@ class ChassisNode(object):
                 self._handle_feedback(feedback)
 
     def _handle_feedback(self, feedback):
-        vx, vy, wz = feedback
-        wz *= self.angular_scale
+        vx = feedback[0] * self.linear_odom_scale
+        vy = feedback[1] * self.linear_odom_scale
+        wz = feedback[2] * self.angular_odom_scale
         now = rospy.Time.now()
 
         # Ignore encoder quantization / electrical noise at standstill.
@@ -263,24 +301,18 @@ class ChassisNode(object):
             dt = hw.feedback_dt(
                 measured, 1.0 / self.feedback_rate, self.feedback_dt_max)
 
-            yaw = self._pose[2] + wz * dt
+            yaw_rate = wz
+            if (self.use_imu_yaw and self._gyro is not None and
+                    (now - self._gyro_time).to_sec() <= self.imu_timeout):
+                if (abs(wz) < self.angular_deadband and
+                        abs(self._gyro) < self.imu_gyro_bias_limit):
+                    self._gyro_bias = hw.update_bias(
+                        self._gyro_bias, self._gyro,
+                        self.imu_gyro_bias_alpha)
+                yaw_rate = hw.blend_rates(
+                    wz, self._gyro - self._gyro_bias, self.imu_gyro_gain)
 
-            if self.use_imu_yaw and self._imu_yaw_filtered is not None:
-                age = (now - self._imu_yaw_time).to_sec()
-                due = (self.imu_correction_rate <= 0.0 or
-                       (now - self._last_imu_correction).to_sec() >=
-                       1.0 / self.imu_correction_rate)
-                if age <= self.imu_timeout and due:
-                    target = hw.wrap_radians(
-                        self._imu_yaw_filtered - self._imu_offset)
-                    error = hw.wrap_radians(target - yaw)
-                    yaw += hw.imu_yaw_step(
-                        error, self.imu_correction_gain,
-                        self.imu_correction_deadband,
-                        self.imu_correction_max_step)
-                    self._last_imu_correction = now
-
-            yaw = hw.wrap_radians(yaw)
+            yaw = hw.wrap_radians(self._pose[2] + yaw_rate * dt)
             self._pose[0] += (
                 vx * math.cos(yaw) - vy * math.sin(yaw)) * dt
             self._pose[1] += (
@@ -288,6 +320,9 @@ class ChassisNode(object):
             self._pose[2] = yaw
             self._last_feedback = (vx, vy, wz)
             self._last_feedback_time = now
+            if (abs(vx) >= 0.01 or abs(vy) >= 0.01 or
+                    abs(wz) >= 0.01):
+                self._last_moving_feedback_time = now
 
     def _publish_odom(self, _event):
         now = rospy.Time.now()
@@ -358,13 +393,8 @@ class ChassisNode(object):
             self._last_odom_time = now
             self._last_feedback = (0.0, 0.0, 0.0)
             self._last_feedback_time = now
-            imu_yaw = (
-                self._imu_yaw_filtered
-                if self._imu_yaw_filtered is not None else self._imu_yaw)
-            self._imu_offset = (
-                hw.imu_yaw_offset(imu_yaw, self.initial_yaw)
-                if imu_yaw is not None else None)
-            self._last_imu_correction = now
+            self._last_moving_feedback_time = now
+            self._nonzero_cmd_start = None
         rospy.loginfo(
             'chassis: odometry reset to (%.3f, %.3f, %.3f)',
             self.initial_x, self.initial_y, self.initial_yaw)

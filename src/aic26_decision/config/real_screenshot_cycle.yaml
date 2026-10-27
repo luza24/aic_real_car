@@ -76,6 +76,11 @@ waypoints:
     shots_per_pass: 5
     result: '{"target": "people", "total": 4, "intruder": 0}'
 
+  - name: "corner_5"
+    label: "061_return_back"
+    shots: 20
+    shots_per_pass: 1
+
   - name: "traffic_light_2"
     label: "070_people_d"
     turn: "right"
@@ -87,14 +92,14 @@ waypoints:
   - name: "traffic_light_2"
     label: "080_light_2"
     light: "traffic_light_2"
-    wait: 40
+    wait: 30
     shots: 60
     shots_per_pass: 3
 
   - name: "car_1"
     label: "090_car_1"
     dwell: 2.0
-    shots: 40
+    shots: 30
     shots_per_pass: 2
     result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
 

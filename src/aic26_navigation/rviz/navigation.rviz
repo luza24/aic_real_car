@@ -57,6 +57,10 @@ Visualization Manager:
 
   Global Options:
     Fixed Frame: map
+    # No GPU on the car: RViz renders with llvmpipe and each frame is shipped
+    # to VcXsrv over WiFi. 10 FPS is enough to watch the nav stack and cuts
+    # the X11 pixel traffic compared with the 30 FPS default.
+    Frame Rate: 10
 
   Name: root
   Tools:

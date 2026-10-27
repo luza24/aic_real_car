@@ -7,5 +7,7 @@ GlobalPlanner:
   old_navfn_behavior: false
   lethal_cost: 253
   neutral_cost: 50
-  cost_factor: 15.0
+  # stock global_planner dynamic reconfigure caps cost_factor at 5.0;
+  # values above 5 are clamped back to 5 at runtime.
+  cost_factor: 5.0
   publish_potential: true

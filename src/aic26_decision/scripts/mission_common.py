@@ -25,10 +25,12 @@ Only rospy, actionlib, tf and the ROS messages are used, so the module
 also imports cleanly without a running master (handy for unit tests).
 """
 
+import math
 import time
 
 import actionlib
 import rospy
+import rosnode
 import tf
 import tf.transformations
 from geometry_msgs.msg import Twist
@@ -189,6 +191,7 @@ class RobotDriver(object):
 
         self.turn_speed = rospy.get_param('~turn_speed', 0.8)
         self.turn_tolerance = rospy.get_param('~turn_tolerance', 0.05)
+        self.turn_min_speed = rospy.get_param('~turn_min_speed', 0.15)
         self.turn_timeout = rospy.get_param('~turn_timeout', 20.0)
         self.turn_rate = rospy.get_param('~turn_rate', 20.0)
         self.turn_tf_timeout = rospy.get_param('~turn_tf_timeout', 3.0)
@@ -241,29 +244,65 @@ class RobotDriver(object):
         return self.announcer.announce_result(target, payload)
 
     # ------------------------------------------------------------- start-up
-    def wait_ready(self, require_nav=True):
-        """Block until the launch-order independent dependencies are up.
+    def check_environment(self, timeout=10.0):
+        """Refuse to drive when the real and simulated backends are mixed.
 
-        Waits for the ``move_base`` action server and for a usable ``map`` ->
-        ``base_footprint`` transform, so a node started before gazebo / the
-        navigation stack simply idles instead of failing or driving blind.
+        A leftover ``/gazebo`` on the same ROS master as ``/chassis`` makes
+        two robots publish TF and consume /cmd_vel; navigation then looks
+        broken even though the navigation stack is fine. Wait a few seconds
+        for the expected backend node to appear, but fail immediately when
+        both are present.
+        """
+        deadline = time.time() + max(0.0, float(timeout))
+        while not rospy.is_shutdown():
+            try:
+                nodes = set(rosnode.get_node_names())
+            except Exception as err:                 # noqa: BLE001
+                rospy.logwarn("could not query the ROS node list: %s", err)
+                return True
+            has_chassis = '/chassis' in nodes
+            has_gazebo = '/gazebo' in nodes
+            if has_chassis and has_gazebo:
+                rospy.logfatal(
+                    "both /chassis and /gazebo are running on this ROS "
+                    "master; stop the simulation or the hardware stack "
+                    "before driving")
+                return False
+            if has_chassis or has_gazebo:
+                return True
+            if time.time() >= deadline:
+                rospy.logfatal(
+                    "neither /chassis nor /gazebo is running; check that "
+                    "bringup.launch started the hardware or sim backend")
+                return False
+            rospy.sleep(0.5)
+        return False
+
+    def wait_ready(self, require_nav=True):
+        """Block until the dependencies for driving are actually up.
+
+        Waits for the expected backend node, the ``move_base`` action server
+        and a usable ``map`` -> ``base_footprint`` transform. Any failure is
+        returned to the caller so it can stop instead of reporting a
+        successful run that never sent a goal.
         """
         if require_nav:
+            if not self.check_environment():
+                return False
             if not self.client.wait_for_server(
                     rospy.Duration(self.nav_server_timeout)):
-                rospy.logwarn("move_base not available after %.0fs, "
-                              "continuing without it",
-                              self.nav_server_timeout)
+                rospy.logerr("move_base not available after %.0fs; "
+                             "not driving", self.nav_server_timeout)
                 return False
             rospy.loginfo("move_base action server is up")
 
-        if self.wait_for_tf(self.ready_timeout):
-            rospy.loginfo("%s -> %s tf is up",
-                          self.global_frame, self.base_frame)
-        else:
-            rospy.logwarn("no %s -> %s tf after %.0fs, continuing",
-                          self.global_frame, self.base_frame,
-                          self.ready_timeout)
+        if not self.wait_for_tf(self.ready_timeout):
+            rospy.logerr("no %s -> %s tf after %.0fs; not driving",
+                         self.global_frame, self.base_frame,
+                         self.ready_timeout)
+            return False
+        rospy.loginfo("%s -> %s tf is up",
+                      self.global_frame, self.base_frame)
         return True
 
     def wait_for_tf(self, timeout):
@@ -333,12 +372,27 @@ class RobotDriver(object):
                               self.global_frame, self.base_frame)
                 self.stop_motion()
                 return False
-            if abs(wrap_angle(target - yaw)) < self.turn_tolerance:
+            error = wrap_angle(target - yaw)
+            if abs(error) < self.turn_tolerance:
                 self.stop_motion()
                 rospy.sleep(self.turn_settle)
                 rospy.loginfo("rotated to %.2f rad", target)
                 return True
-            cmd.angular.z = self.turn_speed * sign
+
+            # Use the sign of the remaining error, not the originally
+            # requested direction: after an overshoot the old fixed-direction
+            # command kept rotating away from the target until the timeout.
+            # +-pi has no sign to follow, so keep the requested direction.
+            if abs(abs(error) - math.pi) < 1e-3:
+                direction_sign = sign
+            else:
+                direction_sign = 1.0 if error >= 0.0 else -1.0
+
+            # Slow down as the target approaches so one 20 Hz command step
+            # cannot skip over the tolerance window.
+            cmd.angular.z = direction_sign * min(
+                self.turn_speed,
+                max(self.turn_min_speed, 3.0 * abs(error)))
             self.cmd_pub.publish(cmd)
             rate.sleep()
 

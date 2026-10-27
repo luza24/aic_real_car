@@ -43,12 +43,13 @@
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
     <param name="turn_settle"     value="0.5"/>
-    <param name="turn_speed"      value="1.6"/>
-    <param name="turn_tolerance"  value="0.05"/>
+    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_tolerance"  value="0.10"/>
+    <param name="turn_min_speed"  value="0.15"/>
     <param name="turn_timeout"    value="20.0"/>
     <!-- nodes wait for move_base / tf instead of depending on launch order -->
     <param name="ready_timeout"      value="60.0"/>
-    <param name="nav_server_timeout" value="120.0"/>
+    <param name="nav_server_timeout" value="30.0"/>
     <param name="nav_timeout"        value="120.0"/>
   </node>
 

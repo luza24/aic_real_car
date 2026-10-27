@@ -43,6 +43,7 @@ robot has no simulation truth.
 
 import json
 import os
+import socket
 import sys
 import threading
 
@@ -243,7 +244,11 @@ class MissionController(RobotDriver):
                   encoding='utf-8') as f:
             waypoints = {w["name"]: w for w in yaml.safe_load(f)["waypoints"]}
 
-        self.wait_ready()
+        if not self.wait_ready():
+            rospy.logerr("navigation prerequisites are not ready; "
+                         "mission controller will not drive")
+            self.stop_motion()
+            return
         rospy.loginfo("mission started, %d tasks", len(tasks))
 
         try:
@@ -256,6 +261,34 @@ class MissionController(RobotDriver):
             self.stop_motion()
             rospy.loginfo("mission interrupted by KeyboardInterrupt")
         rospy.loginfo("mission finished")
+
+
+def _x_display_reachable(timeout=1.0):
+    """Return True when ``$DISPLAY`` points at an X socket that answers.
+
+    ``tkinter.Tk()`` blocks inside Tcl's TCP connect while holding the GIL
+    when the X host silently drops packets (stale LAN address, firewall
+    rule, VcXsrv not running).  That freezes the whole mission_controller
+    process: the readiness check never finishes and no goal is ever sent.
+    Probe the socket with a short timeout first so the viewer can just
+    disable itself instead.
+    """
+    host, sep, rest = os.environ.get('DISPLAY', '').rpartition(':')
+    if not sep:
+        return False
+    try:
+        number = int(rest.split('.')[0])
+    except ValueError:
+        return False
+    if not host or host == 'unix':
+        # local display: a unix socket under /tmp/.X11-unix
+        return os.path.exists('/tmp/.X11-unix/X%d' % number)
+    try:
+        sock = socket.create_connection((host, 6000 + number), timeout)
+    except OSError:
+        return False
+    sock.close()
+    return True
 
 
 class ResultViewer(object):
@@ -377,6 +410,10 @@ class ResultViewer(object):
             import tkinter                                   # noqa: F401
         except ImportError:
             rospy.logwarn("result viewer: tkinter missing, GUI disabled")
+            return None
+        if not _x_display_reachable():
+            rospy.logwarn("result viewer: display %r is unreachable, "
+                          "GUI disabled", os.environ.get('DISPLAY', ''))
             return None
         thread = threading.Thread(target=self._run_gui, name='result_viewer')
         thread.daemon = True

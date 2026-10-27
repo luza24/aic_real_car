@@ -12,7 +12,7 @@
   <arg name="use_rviz" default="true"/>
   <arg name="show_view" default="true"/>
   <!-- hardware arguments -->
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>

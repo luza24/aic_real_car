@@ -32,6 +32,7 @@ class ImuNode(object):
 
         self.accel = [0.0, 0.0, 0.0]
         self.gyro = [0.0, 0.0, 0.0]
+        self.gyro_seen = False
         self.angles = None
 
         self.serial = hw.SerialDevice(self.port, self.baud)
@@ -99,6 +100,7 @@ class ImuNode(object):
             self.accel = parsed['values']
         elif kind == 'gyro':
             self.gyro = parsed['values']
+            self.gyro_seen = True
         elif kind == 'angle':
             self.angles = parsed['values']
             self._publish_imu()
@@ -124,9 +126,12 @@ class ImuNode(object):
         imu.angular_velocity.x = self.gyro[0]
         imu.angular_velocity.y = self.gyro[1]
         imu.angular_velocity.z = self.gyro[2]
-        imu.angular_velocity_covariance[0] = 0.0004
-        imu.angular_velocity_covariance[4] = 0.0004
-        imu.angular_velocity_covariance[8] = 0.0004
+        if self.gyro_seen:
+            imu.angular_velocity_covariance[0] = 0.0004
+            imu.angular_velocity_covariance[4] = 0.0004
+            imu.angular_velocity_covariance[8] = 0.0004
+        else:
+            imu.angular_velocity_covariance[0] = -1.0
 
         imu.linear_acceleration.x = self.accel[0]
         imu.linear_acceleration.y = self.accel[1]

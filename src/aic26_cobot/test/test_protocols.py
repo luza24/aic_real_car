@@ -78,6 +78,12 @@ class ChassisTimingTest(unittest.TestCase):
         self.assertAlmostEqual(hw.imu_yaw_step(-1.0, 0.1, 0.005, 0.02),
                                -0.02)
 
+    def test_gyro_blend_and_bias(self):
+        self.assertAlmostEqual(hw.blend_rates(1.0, 0.0, 0.25), 0.75)
+        self.assertAlmostEqual(hw.blend_rates(1.0, 2.0, 0.0), 1.0)
+        self.assertAlmostEqual(hw.blend_rates(1.0, 2.0, 1.0), 2.0)
+        self.assertAlmostEqual(hw.update_bias(1.0, 0.0, 0.5), 0.5)
+
     def test_imu_offset_preserves_start_yaw(self):
         odom_yaw = hw.wrap_radians(3.141592)
         offset = hw.imu_yaw_offset(-0.00489, odom_yaw)

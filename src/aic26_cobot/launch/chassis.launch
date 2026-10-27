@@ -3,7 +3,7 @@
 
   <arg name="port" default="/dev/carserial"/>
   <arg name="baud" default="115200"/>
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="publish_tf" default="true"/>
   <arg name="initial_x" default="1.6"/>
   <arg name="initial_y" default="1.7"/>

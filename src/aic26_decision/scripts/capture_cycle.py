@@ -258,7 +258,11 @@ class ScreenshotCycle(RobotDriver):
 
     # ------------------------------------------------------------------ run
     def run(self):
-        self.wait_ready()
+        if not self.wait_ready():
+            rospy.logerr("navigation prerequisites are not ready; "
+                         "capture cycle will not drive")
+            self.stop_motion()
+            return
         rospy.loginfo("capture cycle started, %d stops, targets: %s",
                       len(self.stops),
                       ", ".join("%s=%d" % kv

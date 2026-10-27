@@ -23,7 +23,11 @@
   <arg name="sim" default="sim"/>
   <arg name="day_night" default="day"/>
   <arg name="sky_time" default=""/>
-  <arg name="show_view" default="true"/>
+  <!-- The sim only transfers the Gazebo GUI and RViz by default; the extra
+       camera window costs CPU and X11 bandwidth on the headless car. Pass
+       show_view:=true to get it back. Real runs keep the old defaults. -->
+  <arg name="show_view"
+       default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
 
   <!-- common -->
   <arg name="map_file" default="$(find aic26_slam)/maps/world.yaml"/>
@@ -38,15 +42,25 @@
   <arg name="initial_pose_a" default="3.141592"/>
 
   <!-- real hardware backend -->
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>
   <arg name="camera_device" default="/dev/video0"/>
   <arg name="teleop" default="false"/>
-  <arg name="gui" default="true"/>
+  <!-- Tk result panel (mission mode only). Off for sim so only the Gazebo GUI
+       and RViz are shown; pass gui:=true to enable it. -->
+  <arg name="gui"
+       default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="light_fallback"
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
+  <!-- GUI display: reuse an existing DISPLAY (NoMachine / ssh -Y); otherwise
+       use the VcXsrv X server on the SSH client (Windows) at TCP port 6000.
+       This lets a plain `roslaunch ... backend:=sim` command pop up
+       Gazebo/RViz without a local monitor on the car. -->
+  <arg name="gui_display"
+       default="$(eval (optenv('DISPLAY','') or (optenv('SSH_CLIENT','').split(' ')[0] + ':0.0' if optenv('SSH_CLIENT','') else '')))"/>
+  <env name="DISPLAY" value="$(arg gui_display)"/>
 
   <group if="$(eval arg('mode') == 'mission' or arg('mode') == 'real')">
     <include file="$(find aic26_bringup)/launch/mission.launch">

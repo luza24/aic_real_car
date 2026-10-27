@@ -39,10 +39,9 @@
   <arg name="start_x" default="1.6"/>
   <arg name="start_y" default="1.7"/>
   <arg name="start_yaw" default="3.141592"/>
-  <!-- The chassis node limits IMU yaw corrections to a few Hz and filters
-       them, so mapping uses wheel odometry + scan matching by default.
-       Pass use_imu_yaw:=true to enable the IMU heading correction. -->
-  <arg name="use_imu_yaw" default="false"/>
+  <!-- The chassis fuses the WIT gyro z rate into odometry by default.
+       Pass use_imu_yaw:=false to fall back to wheel odometry only. -->
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <arg name="imu_port" default="/dev/imu"/>
   <arg name="lidar_port" default="/dev/lslidar"/>

@@ -31,7 +31,11 @@ class WaypointFollower(RobotDriver):
     def run(self):
         waypoints = self.load_waypoints(rospy.get_param("~waypoints_file"))
 
-        self.wait_ready()
+        if not self.wait_ready():
+            rospy.logerr("navigation prerequisites are not ready; "
+                         "waypoint follower will not drive")
+            self.stop_motion()
+            return
         rospy.loginfo("waypoint follower started, %d waypoints",
                       len(waypoints))
 

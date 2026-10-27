@@ -13,5 +13,7 @@ local_costmap:
     - {name: obstacle_layer, type: "costmap_2d::ObstacleLayer"}
     - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
   inflation_layer:
-    inflation_radius: 0.15
+    # Keep in step with the global costmap: above the 0.136 m inscribed
+    # radius, below half of the 0.56 m narrow lane.
+    inflation_radius: 0.20
     cost_scaling_factor: 10.0

@@ -14,9 +14,16 @@
   <arg name="day_night" default="day"/>
   <arg name="sky_time" default=""/>
   <arg name="show_view" default="true"/>
+  <!-- Simulated camera image. The default is reduced because this machine has
+       no GPU: the 1280x720@30 software render costs ~2 CPU cores. capture.launch
+       overrides these back to the full dataset resolution. -->
+  <arg name="sim_camera_width" default="640"/>
+  <arg name="sim_camera_height" default="360"/>
+  <arg name="sim_camera_rate" default="15.0"/>
+  <arg name="day_night_gui" default="false"/>
 
   <!-- real hardware -->
-  <arg name="use_imu_yaw" default="false"/>
+  <arg name="use_imu_yaw" default="true"/>
   <arg name="chassis_port" default="/dev/carserial"/>
   <!-- Keep the real odometry origin on the same map coordinates as Gazebo.
        The mode launch files pass their AMCL initial pose through these. -->
@@ -39,6 +46,10 @@
       <arg name="day_night" value="$(arg day_night)"/>
       <arg name="sky_time" value="$(arg sky_time)"/>
       <arg name="show_view" value="$(arg show_view)"/>
+      <arg name="camera_image_width" value="$(arg sim_camera_width)"/>
+      <arg name="camera_image_height" value="$(arg sim_camera_height)"/>
+      <arg name="camera_image_rate" value="$(arg sim_camera_rate)"/>
+      <arg name="day_night_gui" value="$(arg day_night_gui)"/>
     </include>
   </group>
 
