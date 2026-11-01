@@ -7,14 +7,7 @@
     "intruders": [],
     "boxes": {}
   },
-  "car": {
-    "target": "car",
-    "total": 0,
-    "cars": [],
-    "plate": "",
-    "plate_conf": 0.0,
-    "boxes": {}
-  },
+  "car": {},
   "traffic_light": {
     "target": "traffic_light",
     "model_name": "traffic_light",

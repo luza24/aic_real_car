@@ -183,20 +183,27 @@ class CameraNode(object):
                 self.cap = None
                 continue
 
-            if self.flip_horizontal and self.flip_vertical:
-                frame = cv2.flip(frame, -1)
-            elif self.flip_horizontal:
-                frame = cv2.flip(frame, 1)
-            elif self.flip_vertical:
-                frame = cv2.flip(frame, 0)
+            stamp = rospy.Time.now()
 
-            image = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
-            image.header.stamp = rospy.Time.now()
-            image.header.frame_id = self.frame_id
-            self.image_pub.publish(image)
+            # Skip the flip, the BGR conversion and the ~2.8 MB publish when
+            # nothing is listening; CameraInfo still goes out at frame rate so
+            # hardware_status can keep watching camera liveness.
+            if self.image_pub.get_num_connections() > 0:
+                if self.flip_horizontal and self.flip_vertical:
+                    frame = cv2.flip(frame, -1)
+                elif self.flip_horizontal:
+                    frame = cv2.flip(frame, 1)
+                elif self.flip_vertical:
+                    frame = cv2.flip(frame, 0)
+
+                image = self.bridge.cv2_to_imgmsg(frame, encoding='bgr8')
+                image.header.stamp = stamp
+                image.header.frame_id = self.frame_id
+                self.image_pub.publish(image)
 
             info = self._make_camera_info()
-            info.header = image.header
+            info.header.stamp = stamp
+            info.header.frame_id = self.frame_id
             self.info_pub.publish(info)
             rate.sleep()
 

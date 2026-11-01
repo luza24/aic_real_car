@@ -118,6 +118,15 @@ tasks:
     target: "car"
     message: "Car 2 inspection finished."
 
+  - name: "rubbish bin"
+    type: inspect
+    waypoint: "rubbish bin"
+    turn: "left"
+    dwell: 2.0
+    target: "rubbish bin"
+    message: "rubbish bin inspection"
+
+
   - name: "car_3"
     type: inspect
     waypoint: "car_3"
@@ -125,6 +134,31 @@ tasks:
     dwell: 2.0
     target: "car"
     message: "Car 3 inspection finished."
+
+  - name: "layout"
+    type: inspect
+    waypoint: "layout"
+    turn: "left"
+    dwell: 2.0
+    target: "layout"
+    message: "layout inspection finished."
+
+  - name: "e-bike 1"
+    type: inspect
+    waypoint: "e-bike 1"
+    turn: "right"
+    dwell: 2.0
+    target: "e-bike"
+    message: "e-bike inspection finished"
+
+  - name: "e-bike 2"
+    type: inspect
+    waypoint: "e-bike 2"
+    turn: "right"
+    dwell: 2.0
+    target: "e-bike"
+    message: "e-bike inspection finished"  
+
 
   - name: "return_back"
     type: goto

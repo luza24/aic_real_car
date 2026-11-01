@@ -321,8 +321,8 @@ class ResultViewer(object):
         os.makedirs(self.out_dir, exist_ok=True)
 
         rospy.Subscriber(result_topic, String, self.on_result)
-        for target, topic in self.IMAGE_TOPICS.items():
-            rospy.Subscriber(topic, Image, self.on_image, callback_args=target)
+        # The three debug images are subscribed only when the window can
+        # actually open (see start()): each one is a full 1280x720 frame.
 
         # the traffic light detector publishes a message, not a json result
         try:
@@ -415,10 +415,17 @@ class ResultViewer(object):
             rospy.logwarn("result viewer: display %r is unreachable, "
                           "GUI disabled", os.environ.get('DISPLAY', ''))
             return None
+        self._subscribe_images()
         thread = threading.Thread(target=self._run_gui, name='result_viewer')
         thread.daemon = True
         thread.start()
         return thread
+
+    def _subscribe_images(self):
+        """Subscribe to the detector debug images (GUI up only)."""
+        for target, topic in self.IMAGE_TOPICS.items():
+            rospy.Subscriber(topic, Image, self.on_image,
+                             callback_args=target, queue_size=1)
 
     def _run_gui(self):
         import tkinter as tk

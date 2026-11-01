@@ -9,7 +9,7 @@ from diagnostic_msgs.msg import (
     DiagnosticArray, DiagnosticStatus, KeyValue)
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Image, Imu, LaserScan
+from sensor_msgs.msg import CameraInfo, Imu, LaserScan
 
 
 class StatusNode(object):
@@ -24,8 +24,11 @@ class StatusNode(object):
             'chassis': rospy.get_param('~vel_topic', '/vel_raw'),
             'imu': rospy.get_param('~imu_topic', '/imu/data'),
             'lidar': rospy.get_param('~scan_topic', '/scan'),
+            # CameraInfo is a tiny message published right after every
+            # frame, so it tracks camera liveness without deserializing the
+            # ~2.8 MB raw image here.
             'camera': rospy.get_param(
-                '~image_topic', '/camera/image_raw'),
+                '~camera_topic', '/camera/camera_info'),
             'odom': rospy.get_param('~odom_topic', '/odom'),
         }
         self.last = {name: None for name in self.topics}
@@ -42,8 +45,8 @@ class StatusNode(object):
             self.topics['lidar'], LaserScan,
             lambda msg, name='lidar': self._stamp(name))
         rospy.Subscriber(
-            self.topics['camera'], Image,
-            lambda msg, name='camera': self._stamp(name))
+            self.topics['camera'], CameraInfo,
+            lambda msg, name='camera': self._stamp(name), queue_size=1)
         rospy.Subscriber(
             self.topics['odom'], Odometry,
             lambda msg, name='odom': self._stamp(name))

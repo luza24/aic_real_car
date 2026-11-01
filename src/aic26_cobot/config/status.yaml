@@ -6,5 +6,5 @@ hardware_id: aic26_cobot
 vel_topic: /vel_raw
 imu_topic: /imu/data
 scan_topic: /scan
-image_topic: /camera/image_raw
+camera_topic: /camera/camera_info
 odom_topic: /odom

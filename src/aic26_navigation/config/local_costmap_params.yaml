@@ -1,4 +1,5 @@
 local_costmap:
+  footprint_padding: -0.02
   global_frame: odom
   robot_base_frame: base_footprint
   update_frequency: 10.0

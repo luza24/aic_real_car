@@ -30,6 +30,7 @@ detected and the light state is the color whose lens is "on".
 
 import os
 import sys
+import threading
 
 import cv2
 import rospy
@@ -90,8 +91,12 @@ class TrafficLightDetector(object):
             rospy.get_param('~image_topic', '/perception/traffic_light/image'),
             Image, queue_size=1)
 
-        rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
-                         Image, self.on_image, queue_size=1)
+        # The image subscription is created on demand (see _set_active): a
+        # 1280x720 raw frame is ~2.8 MB and rospy deserializes every message
+        # before the callback can drop it, so an idle subscriber wastes CPU.
+        self.image_in = rospy.get_param('~image_in', '/camera/image_raw')
+        self.image_sub = None
+        self.image_lock = threading.Lock()
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
@@ -126,16 +131,27 @@ class TrafficLightDetector(object):
             return STATE_MAP[on_colors.pop()]
         return 'UNKNOWN'
 
+    def _set_active(self, active):
+        """Subscribe to the camera only while this detector is requested."""
+        self.active = active
+        with self.image_lock:
+            if active and self.image_sub is None:
+                self.image_sub = rospy.Subscriber(
+                    self.image_in, Image, self.on_image, queue_size=1)
+            elif not active and self.image_sub is not None:
+                self.image_sub.unregister()
+                self.image_sub = None
+
     def on_detect(self, msg):
         # only the node whose target was requested runs; a request for another
         # target (or "stop") switches this one off again
         req = msg.data.strip().lower()
         if req == 'traffic_light':
-            self.active = True
             self.last_infer = rospy.Time(0)
+            self._set_active(True)
             rospy.loginfo("traffic light detection restarted")
         else:
-            self.active = False
+            self._set_active(False)
 
     def on_image(self, msg):
         # the light state is only inspected while the mission has a
@@ -162,6 +178,8 @@ class TrafficLightDetector(object):
         self.state_pub.publish(out)
 
     def publish_debug(self, frame, dets):
+        if self.image_pub.get_num_connections() == 0:
+            return
         for name, score, box in dets:
             color, _ = parse_class(name)
             x, y, w, h = [int(v) for v in box]
