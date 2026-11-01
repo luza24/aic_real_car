@@ -15,6 +15,9 @@
   <arg name="initial_pose_a" default="3.141592"/>
   <arg name="laser_min_range" default="0.1"/>
   <arg name="laser_max_range" default="12.0"/>
+  <!-- Set false to run a controller that publishes
+       /cmd_vel itself (e.g. direct.launch). -->
+  <arg name="use_move_base" default="true"/>
 
   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"
         launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
@@ -30,34 +33,36 @@
     <param name="laser_max_range" value="$(arg laser_max_range)" type="double"/>
   </node>
 
-  <node name="move_base" pkg="move_base" type="move_base" output="screen"
-        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
-              command="load" ns="global_costmap"/>
-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
-              command="load" ns="local_costmap"/>
-    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
-              command="load"/>
-    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
-              command="load"/>
-    <!-- global_planner_params.yaml already has a GlobalPlanner root key;
-         adding ns="GlobalPlanner" here would double the namespace. -->
-    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
-              command="load"/>
-    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
-              command="load"/>
+  <group if="$(arg use_move_base)">
+    <node name="move_base" pkg="move_base" type="move_base" output="screen"
+          launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+      <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+                command="load" ns="global_costmap"/>
+      <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+                command="load" ns="local_costmap"/>
+      <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
+                command="load"/>
+      <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
+                command="load"/>
+      <!-- global_planner_params.yaml already has a GlobalPlanner root key;
+           adding ns="GlobalPlanner" here would double the namespace. -->
+      <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
+                command="load"/>
+      <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
+                command="load"/>
 
-    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
-    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
-    <param name="controller_frequency" value="10.0"/>
-    <param name="planner_frequency"    value="1.0"/>
-    <param name="planner_patience"     value="5.0"/>
-    <param name="controller_patience"  value="15.0"/>
-    <param name="oscillation_timeout"  value="6.0"/>
-    <param name="oscillation_distance" value="0.1"/>
-    <param name="clearing_rotation_allowed" value="true"/>
-    <param name="recovery_behavior_enabled" value="true"/>
-  </node>
+      <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+      <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+      <param name="controller_frequency" value="10.0"/>
+      <param name="planner_frequency"    value="1.0"/>
+      <param name="planner_patience"     value="5.0"/>
+      <param name="controller_patience"  value="15.0"/>
+      <param name="oscillation_timeout"  value="6.0"/>
+      <param name="oscillation_distance" value="0.1"/>
+      <param name="clearing_rotation_allowed" value="true"/>
+      <param name="recovery_behavior_enabled" value="true"/>
+    </node>
+  </group>
 
   <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
         args="-d $(find aic26_navigation)/rviz/navigation.rviz"

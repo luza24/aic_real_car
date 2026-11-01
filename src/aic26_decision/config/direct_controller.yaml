@@ -1,0 +1,91 @@
+# Parameters for direct_waypoint_controller.py (speech workspace).
+# Loaded into the node's private namespace by aic26_bringup/launch/direct.launch.
+
+# ---------------------------------------------------------------- waypoints
+waypoints_file: ""              # overridden by the launch file
+start_at: ""                    # start at this waypoint name, then follow file order
+names: ""                       # comma-separated names; overrides start_at
+loop: false
+max_loops: 0                    # 0 = unlimited (only used when loop is true)
+honor_dwell: false
+align_final_yaw: true
+continue_on_failure: false
+dry_run: false                  # publish zeros only, print intended commands
+dry_run_seconds: 10.0
+check_only: false               # validate waypoint segments against /map, then exit
+
+# ------------------------------------------------------------ frames/topics
+global_frame: map
+base_frame: base_footprint
+scan_topic: /scan
+odom_topic: /odom
+cmd_topic: /cmd_vel
+status_topic: /direct_waypoint/status
+control_rate: 20.0
+status_rate: 2.0
+laser_yaw_offset_deg: 0.0
+
+# ------------------------------------------------------------------ control
+v_max: 0.15
+v_min: 0.05
+w_max: 0.45
+turn_w_max: 0.35
+turn_w_min: 0.10
+k_d: 0.8
+k_theta: 1.0
+k_turn: 1.2
+stop_distance: 0.05
+position_tolerance: 0.08
+e_reorient: 0.60
+turn_tol: 0.06
+yaw_tol: 0.06
+settle_time: 0.30
+linear_accel: 0.5
+angular_accel: 1.0
+rotate_skip_distance: 0.25
+
+# ------------------------------------------------------------------- safety
+obstacle_half_angle_deg: 25.0
+obstacle_stop_distance: 0.25
+obstacle_resume_distance: 0.35
+obstacle_clear_hold: 0.8
+obstacle_wait: 10.0
+scan_timeout: 0.5
+tf_fail_timeout: 0.5
+tf_recovery_wait: 2.0
+use_amcl_watchdog: true
+# AMCL only publishes when its filter updates. The stale check is armed only
+# when /odom shows real motion, and stays latched until a fresh pose arrives.
+amcl_pose_timeout: 3.0
+odom_timeout: 0.5
+odom_moving_linear: 0.02
+odom_moving_angular: 0.05
+amcl_jump_xy: 0.30
+amcl_jump_yaw: 0.35
+amcl_cov_xy_max: 0.30
+amcl_cov_yaw_max: 0.10
+amcl_cov_hold: 0.5
+amcl_recovery_wait: 2.0
+exclusive_cmd: true
+cmd_check_period: 1.0
+allowed_cmd_publishers: []
+require_backend: real
+segment_check: true
+# Corridor half width for the static-map pre-check. The real footprint is
+# 0.284 x 0.272 m, so the lateral half width is 0.136 m.
+segment_half_width: 0.14
+map_occupied_threshold: 65
+map_unknown_blocked: true
+zero_burst_sec: 0.8
+zero_burst_rate: 20.0
+disable_chassis_on_exit: false
+chassis_enable_service: /chassis/enable
+
+# ----------------------------------------------------------------- timeouts
+ready_timeout: 60.0
+startup_settle: 2.0
+turn_timeout: 20.0
+drive_timeout: 120.0
+align_timeout: 15.0
+stall_window: 4.0
+stall_distance: 0.03

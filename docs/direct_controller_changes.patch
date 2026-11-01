@@ -1,0 +1,1618 @@
+diff --git a/docs/direct_waypoint_controller.md b/docs/direct_waypoint_controller.md
+new file mode 100644
+index 0000000..b0d7eac
+--- /dev/null
++++ b/docs/direct_waypoint_controller.md
+@@ -0,0 +1,287 @@
++# 直接底盘控制：绕过 TEB 的点到点航点控制器
++
++- 日期：2026-11-01
++- 工作区：`/home/mowen/aic26_ws_speech`（git worktree，分支 `feature/speech-announcement`）
++- 车辆：`mowen@192.168.1.15`（Intel N100，Ubuntu 20.04 + ROS Noetic）
++- 状态：代码完成、离线验证通过（假激光 + 假底盘闭环），**尚未实车试跑**
++
++---
++
++## 1. 背景与目标
++
++实车在 0.55–0.61 m 窄道里用 move_base + TEB 时反复出现：
++
++- `TebLocalPlannerROS: trajectory is not feasible`、`NO PATH!`
++- 到点附近反复修正/振荡、恢复行为里原地旋转
++- 压线问题与停靠点几何强相关（见 `2026-10-28` 压线分析）
++
++因此改为**不用 TEB、不经 move_base**：控制器自己读取 map 帧航点，用 AMCL 位姿闭环，直接向底盘发布 `/cmd_vel`。
++
++本次确定的四个设计选择：
++
++| 项 | 选择 |
++|---|---|
++| 控制形态 | 点到点闭环：原地转向 → 航向闭环直行 → 接近减速 → 终点 yaw 对准 |
++| 位姿反馈 | AMCL map 帧：TF `map→base_footprint` |
++| 障碍处理 | 激光前向扇区急停，不做绕障 |
++| 落点 | speech 工作区，**独立脚本**，不接入 mission_controller |
++
++---
++
++## 2. 改动清单
++
++全部位于 speech 工作区：
++
++| 文件 | 动作 | 作用 |
++|---|---|---|
++| `src/aic26_decision/scripts/direct_waypoint_controller.py` | 新增 | 独立 rospy 节点，直接发布 `/cmd_vel`；不 import `mission_common`，不创建 move_base action client |
++| `src/aic26_decision/config/direct_controller.yaml` | 新增 | 控制、安全、超时的全部参数默认值 |
++| `src/aic26_decision/config/direct_test_waypoints.yaml` | 新增 | 首轮验证用安全子集航点（顶部长廊 3 点） |
++| `src/aic26_bringup/launch/direct.launch` | 新增 | 一键启动：backend + map_server/amcl（不含 move_base）+ 控制器 |
++| `src/aic26_navigation/launch/navigation.launch` | 修改 | 新增 `use_move_base` 参数（默认 `true`），把 move_base 节点包进 `<group if>`；原有模式行为不变 |
++| `src/aic26_decision/CMakeLists.txt` | 修改 | `catkin_install_python` 增加新脚本 |
++
++没有修改 chassis、AMCL、costmap、TEB 的任何参数；没有改任务表和现有航点。
++
++---
++
++## 3. 系统结构
++
++```
++chassis_node ──/cmd_vel──> 串口 STM32          (0.5 s 无命令自动零速)
++      │
++      ├── /odom + TF odom→base_footprint
++      └── /vel_raw
++
++lidar_node ──/scan──┐
++map_server ─/map────┼──> AMCL ──TF map→odom + /amcl_pose
++                    └──> direct_waypoint_controller ──/cmd_vel
++robot_state_publisher: base_footprint→base_link→laser
++```
++
++关键事实：
++
++- 底盘 `max_linear=0.5 m/s`、`max_angular=1.5 rad/s`、`cmd_timeout=0.5 s`、串口下发 `cmd_rate=10 Hz`、无加速度限制。
++- 控制器以 **20 Hz** 运行并**持续发布**；任何循环阻塞超过 0.5 s 都会让底盘先自行停车。
++- 多发布者没有 mux：move_base / teleop / mission_controller 任一活跃都会覆盖本节点；控制器会检查并拒绝运行。
++- 不使用 move_base 时，`map_server + amcl + chassis + lidar + robot_state_publisher` 仍然必需；costmap、virtual_walls、global planner、TEB 全部不启动。
++
++---
++
++## 4. 状态机
++
++每个航点独立执行：
++
++```
++WAIT_READY → [段预检] → ROTATE → DRIVE_SETTLE → DRIVE
++           → ALIGN_SETTLE → ALIGN_YAW → DONE_SETTLE → DWELL → 下一点
++                         ↑
++                BLOCKED（可恢复，恢复后从 ROTATE 重来）
++```
++
++| 阶段 | 进入/行为 | 退出条件 | 超时 |
++|---|---|---|---|
++| `WAIT_READY` | 等 TF、`/scan`、`/map`、后端节点、`/cmd_vel` 独占检查；完成后静置 | 全部就绪 | 60 s |
++| 段预检 | 当前位姿 → 航点 的直线走廊用 `/map` 检查 | 通过才继续 | 一次 |
++| `ROTATE` | 对准“当前位姿→目标点”的方位角；距离 < 0.25 m 可跳过 | 连续 3 tick 误差 ≤ 0.06 rad | 20 s |
++| `DRIVE_SETTLE` | 发布零速，等车停稳 | 0.30 s | — |
++| `DRIVE` | 航向闭环直行，近点减速 | 距离 ≤ 0.08 m 连续 2 tick | 120 s；4 s 内位移 < 0.03 m 判卡死 |
++| `ALIGN_SETTLE` | 零速停稳 | 0.30 s | — |
++| `ALIGN_YAW` | 转到航点 `yaw`（`align_final_yaw:=false` 可跳过） | 连续 3 tick 误差 ≤ 0.06 rad | 15 s |
++| `DONE_SETTLE` | 零速，打印实际位置/航向误差 | 0.30 s | — |
++| `DWELL` | 可选停留（默认关闭） | 达到 `dwell` | — |
++| `BLOCKED` | 障碍/扫描超时/TF 丢失/AMCL 异常：立即零速 | 条件消失（障碍需滞回） | 10 s 后判本点失败 |
++
++失败策略：默认 `continue_on_failure=false`，任一点失败则中止整条路线；可用 `start_at`、`names` 选择子集。
++
++---
++
++## 5. 控制律
++
++所有角度先 `wrap_angle()` 归一化到 `(-π, π]`。
++
++### 5.1 原地转向（ROTATE / ALIGN_YAW）
++
++```
++e = wrap(target_yaw - yaw)
++|e| <= turn_tol(0.06) 连续 3 tick → 停止，settle 0.3 s
++w = sign(e) * clamp(k_turn*|e|, turn_w_min, turn_w_max)
++                  = clamp(1.2*|e|, 0.10, 0.35) rad/s
++```
++
++符号取**剩余误差**，过冲后自动反向修正；±π 附近保持原方向。
++
++### 5.2 直行（DRIVE）
++
++```
++d      = hypot(tx - x, ty - y)
++bearing = atan2(ty - y, tx - x)
++e      = wrap(bearing - yaw)
++
++|e| > e_reorient(0.60):  v = 0，按 5.1 原地重新对准
++否则:
++  v = min(v_max, k_d * max(0, d - stop_distance))     # 0.8, 0.05 m, 0.15 m/s
++  if d > 0.20: v = max(v, v_min)                      # 0.05 m/s
++  v *= max(0.35, 1 - |e|/e_reorient)                  # 航向差越大越慢
++  w = clamp(k_theta * e, -w_max, w_max)               # 1.0, ±0.45 rad/s
++```
++
++- `linear.y = 0`（差速/skid-steer，不使用横移）。
++- 到达判据用 AMCL 位姿，位置容差 0.08 m、终点 yaw 容差 0.06 rad。
++
++### 5.3 输出斜坡
++
++```
++dt = 1/control_rate
++v_cmd = clamp(v_target, v_cmd_prev - linear_accel*dt,  v_cmd_prev + linear_accel*dt)
++w_cmd = clamp(w_target, w_cmd_prev - angular_accel*dt, w_cmd_prev + angular_accel*dt)
++```
++
++`linear_accel=0.5 m/s²`、`angular_accel=1.0 rad/s²`。**急停（障碍、超时、Ctrl-C）不走斜坡，直接零速**；恢复前进时从零重新爬升。
++
++---
++
++## 6. 安全层
++
++| 保护 | 规则 |
++|---|---|
++| 激光前向急停 | `/scan` 前向 ±25° 最小有效距离（`range_min < r <= min(range_max, 6)`）< 0.25 m → 立即零速；恢复到 > 0.35 m 且持续 0.8 s 才继续；阻塞超过 10 s 判本点失败 |
++| TF 看门狗 | 每 tick 查 `lookupTransform(map, base_footprint, Time(0))`；连续丢失 0.5 s 零速，2 s 内恢复则从 `ROTATE` 重来，否则失败 |
++| 扫描超时 | `/scan` 超过 0.5 s 未更新 → 零速 |
++| AMCL 看门狗 | 相邻 `/amcl_pose` 平移 > 0.30 m 或 yaw > 0.35 rad → 停车 2 s；`cov[0]/cov[7] > 0.30` 或 `cov[35] > 0.10` 持续 0.5 s → 停车。位姿超过 3 s 未更新时，**仅当 `/odom` 显示实际运动**才判定异常并锁存，直到新位姿到达（AMCL 静止时不发布，不能按“命令速度”判断，否则会抖动）。控制位姿始终用 TF，AMCL 只做看门狗 |
++| 命令独占 | 启动时与每 1 s 用 `rosgraph` 查询 `/cmd_vel` 发布者；除本节点（及 `allowed_cmd_publishers`）外存在任何发布者 → 零速退出 |
++| 后端互斥 | `require_backend:=real` 要求存在 `/chassis` 且不存在 `/gazebo`；`sim` 反之；`any` 跳过 |
++| 直线段预检 | 每个航点出发前，在 `/map` 上沿直线每 0.05 m 采样，计算到“占据/未知格矩形边缘”的真实距离；小于 `segment_half_width(0.14 m)` 即失败，提示补中间航点 |
++| 退出停车 | SIGINT/异常：20 Hz 连发 0.8 s 零速；`disable_chassis_on_exit:=true` 时再调 `/chassis/enable false` |
++
++注意：激光安装高度约 16 cm，低于扫描平面的障碍不可见；车头 0.2 m 内是 `range_min` 盲区。急停只是兜底，不能替代人工值守。
++
++---
++
++## 7. 参数（`direct_controller.yaml`）
++
++### 航点与运行方式
++
++| 参数 | 默认 | 说明 |
++|---|---|---|
++| `waypoints_file` | 由 launch 指定 | 航点 YAML（`name/x/y/yaw/dwell`，可选 `frame_correction`） |
++| `start_at` | `""` | 从该名称开始，按文件顺序继续 |
++| `names` | `""` | 逗号分隔名称，按给出顺序执行；优先于 `start_at` |
++| `loop` / `max_loops` | `false` / `0` | 循环与次数限制（0 = 无限） |
++| `honor_dwell` | `false` | 是否执行航点 `dwell` |
++| `align_final_yaw` | `true` | 到点后是否转到航点 yaw |
++| `continue_on_failure` | `false` | 单点失败后是否继续 |
++| `dry_run` / `dry_run_seconds` | `false` / `10` | 只发零速，打印意图速度 |
++| `check_only` | `false` | 只做航点/直线段地图预检后退出 |
++
++### 控制
++
++| 参数 | 默认 | 参数 | 默认 |
++|---|---:|---|---:|
++| `control_rate` | 20 Hz | `status_rate` | 2 Hz |
++| `v_max` | 0.15 m/s | `v_min` | 0.05 m/s |
++| `w_max` | 0.45 rad/s | `turn_w_max` / `turn_w_min` | 0.35 / 0.10 rad/s |
++| `k_d` | 0.8 /s | `k_theta` / `k_turn` | 1.0 / 1.2 /s |
++| `stop_distance` | 0.05 m | `position_tolerance` | 0.08 m |
++| `e_reorient` | 0.60 rad | `turn_tol` / `yaw_tol` | 0.06 rad |
++| `settle_time` | 0.30 s | `linear_accel` / `angular_accel` | 0.5 m/s² / 1.0 rad/s² |
++| `rotate_skip_distance` | 0.25 m | | |
++
++### 安全与超时
++
++| 参数 | 默认 | 参数 | 默认 |
++|---|---:|---|---:|
++| `obstacle_half_angle_deg` | 25° | `obstacle_stop_distance` | 0.25 m |
++| `obstacle_resume_distance` | 0.35 m | `obstacle_clear_hold` | 0.8 s |
++| `obstacle_wait` | 10 s | `scan_timeout` | 0.5 s |
++| `tf_fail_timeout` | 0.5 s | `tf_recovery_wait` | 2 s |
++| `use_amcl_watchdog` | true | `amcl_pose_timeout` | 3 s |
++| `odom_topic` | `/odom` | `odom_timeout` | 0.5 s |
++| `odom_moving_linear` / `_angular` | 0.02 m/s / 0.05 rad/s | `amcl_jump_xy` / `amcl_jump_yaw` | 0.30 m / 0.35 rad |
++| `amcl_cov_xy_max` / `_yaw_max` | 0.30 / 0.10 | `amcl_recovery_wait` | 2 s |
++| `exclusive_cmd` | true | `cmd_check_period` | 1 s |
++| `segment_check` | true | `segment_half_width` | 0.14 m |
++| `map_occupied_threshold` | 65 | `map_unknown_blocked` | true |
++| `zero_burst_sec` / `zero_burst_rate` | 0.8 s / 20 Hz | `disable_chassis_on_exit` | false |
++| `ready_timeout` | 60 s | `startup_settle` | 2 s |
++| `turn_timeout` / `drive_timeout` / `align_timeout` | 20 / 120 / 15 s | `stall_window` / `stall_distance` | 4 s / 0.03 m |
++
++---
++
++## 8. 启动方式
++
++```bash
++# 0) 只做预检：检查航点直线是否穿墙，不驱动
++roslaunch aic26_bringup direct.launch backend:=real check_only:=true
++
++# 1) 不动的联调：检查 TF/scan/map/参数/命令独占
++roslaunch aic26_bringup direct.launch backend:=real dry_run:=true
++
++# 2) 单点低速实测
++roslaunch aic26_bringup direct.launch backend:=real use_rviz:=true \
++  names:="traffic_light_1" v_max:=0.10
++
++# 3) 连续多段（默认用 direct_test_waypoints.yaml）
++roslaunch aic26_bringup direct.launch backend:=real \
++  waypoints_file:=$(rospack find aic26_decision)/config/direct_test_waypoints.yaml
++
++# 4) 指定任务表中的若干点（按给定顺序）
++roslaunch aic26_bringup direct.launch backend:=real \
++  waypoints_file:=$(rospack find aic26_decision)/config/real_waypoints.yaml \
++  names:="traffic_light_1,station_1"
++```
++
++运行前提：
++
++- **move_base、teleop、mission_controller 必须未运行**（节点会自检并退出）。
++- AMCL 初始位姿与实际摆放一致；`direct.launch` 默认 `(1.6, 1.7, π)`，车端 odom 初值与此保持一致。
++- 实车使用地图 `world.yaml`（speech 工作区默认）；如换成 `world_real.yaml`，用 `map_file:=...` 覆盖。
++
++---
++
++## 9. 验证记录
++
++全部为**离线验证**：独立 ROS master（端口 11312–11314）+ map_server + 假激光 + 假底盘（积分 `/cmd_vel` 广播 TF），**未启动 chassis 节点、未接串口、未产生真实运动**。
++
++| 测试 | 结果 |
++|---|---|
++| `check_only`（起点 → traffic_light_1 → station_1 → corner_2） | 3 段全部 PASS |
++| `dry_run` | `heading_error=0.10 rad → v=0.13 m/s, w=0.10 rad/s`，无非零 `/cmd_vel` |
++| 前方 0.23 m 障碍 | 进入 `BLOCKED`，`v=w=0` |
++| 闭环三航点（`traffic_light_1, station_1, corner_2`） | 全部到达：位置误差 0.079 / 0.080 / 0.079 m；yaw 误差 0.056 / 0.018 / 0.030 rad |
++
++测试脚本位于车端 `/tmp/direct_test/`（`fake_scan.py`、`fake_pose.py`、`run_offline_test.sh`、`run_closed_loop_test.sh`），未放入仓库。
++
++---
++
++## 10. 已知限制与实车前清单
++
++1. **现有 `real_waypoints.yaml` 是给 TEB 用的**：相邻点的直线可能穿墙。必须先用 `check_only` 验证；被挡时补中间航点，不要加宽 `segment_half_width`。
++2. 首跑用 `v_max:=0.10`，人跟车，急停在手；确认 Ctrl-C 后 0.8 s 内停住。
++3. 激光看不到低于约 16 cm 的障碍；车头 0.2 m 内是盲区；只有前向扇区保护，无侧向保护。
++4. speech 工作区的 AMCL 参数较旧（300/1200 粒子、0.10/0.10 更新），位姿会有阶梯修正；如表现差再考虑从 main 借用参数。
++5. 直行段不做绕障：遇到障碍只会停车，超过 10 s 判失败。
++6. 终点 yaw 若朝向墙，原地旋转可能扫掠到障碍；航点朝向需逐点检查。
++7. 建议指标：位置误差 ≤ 0.10 m、yaw ≤ 0.10 rad、无非计划停车、3 次连续全程 0 失败。
++
++---
++
++## 11. 与 TEB 的取舍
++
++| 维度 | 直接控制器 | TEB + move_base |
++|---|---|---|
++| 可预测性 | 高：固定转向/直行，无轨迹优化 | 低：可能 `not feasible`、振荡、恢复旋转 |
++| 窄道行为 | 按直线走，路线由航点保证 | 依赖 costmap/膨胀，容易被判不可行 |
++| 障碍绕行 | 无，只急停 | 有（全局 + 局部规划） |
++| 路线要求 | 相邻航点必须直线可达或补中间点 | 可绕行，容错更高 |
++| CPU | 低（无 costmap/TEB） | 高（两层 costmap + TEB 10 Hz） |
++| 定位依赖 | 强：AMCL 跳变会直接反映到运动 | 同样依赖，但有代价地图约束 |
++
++---
++
++## 12. 开发过程中的坑
++
++- **ROS1 `tf` 的 `lookupTransform` 不接受 timeout 参数**（那是 tf2 的 API）；调用四个参数会抛 `TypeError`。本实现只用 `Time(0)`。
++- 直线段检查最初用“格数半径”，在 0.05 m 栅格 + 浮点边界下会多算一格，导致贴墙航点误报。改为“采样点到占据格矩形边缘的真实欧氏距离”后稳定；走廊半宽取 0.14 m（机器人半宽 0.136 m）。
++- `rosrun ... _check_only:=true` 的私有参数会留在参数服务器上，下一次运行若未显式覆盖会沿用；`direct.launch` 对每个参数都显式赋值，不受影响。
++- 该工作区 `build/CMakeCache.txt` 里有遗留 `CATKIN_WHITELIST_PACKAGES=aic26_navigation`，`catkin_make` 不会重编 `aic26_decision`；新脚本仍可被 `rosrun`/`roslib` 从源码目录解析到。需要安装到 devel 时先清掉该变量。
+diff --git a/src/aic26_bringup/launch/direct.launch b/src/aic26_bringup/launch/direct.launch
+new file mode 100644
+index 0000000..4b72e69
+--- /dev/null
++++ b/src/aic26_bringup/launch/direct.launch
+@@ -0,0 +1,106 @@
++<?xml version="1.0"?>
++<launch>
++
++  <!-- Direct point-to-point waypoint driving without move_base or TEB.
++
++       Starts the selected backend (hardware drivers or Gazebo), map_server +
++       AMCL (move_base is disabled), and the direct waypoint controller.
++       The controller checks the straight segments between waypoints against
++       the static map before driving, so start with a small verified subset
++       (direct_test_waypoints.yaml) instead of the full task route.
++
++       Examples:
++         roslaunch aic26_bringup direct.launch backend:=real \
++             names:="traffic_light_1" v_max:=0.10
++         roslaunch aic26_bringup direct.launch backend:=real check_only:=true
++  -->
++
++  <arg name="backend" default="real"/>
++  <arg name="sim" default="sim"/>
++  <arg name="day_night" default="day"/>
++  <arg name="sky_time" default=""/>
++  <arg name="show_view" default="false"/>
++  <arg name="use_rviz" default="true"/>
++  <arg name="node_delay" default="0.0"/>
++  <arg name="sim_map" default="$(find aic26_slam)/maps/world_sim.yaml"/>
++  <arg name="real_map" default="$(find aic26_slam)/maps/world.yaml"/>
++  <arg name="map_file"
++       default="$(eval arg('sim_map') if arg('backend') == 'sim' else arg('real_map'))"/>
++
++  <!-- AMCL initial pose (chassis odometry uses the same start pose). -->
++  <arg name="set_initial_pose" default="true"/>
++  <arg name="initial_pose_x" default="1.6"/>
++  <arg name="initial_pose_y" default="1.7"/>
++  <arg name="initial_pose_a" default="3.141592"/>
++  <arg name="laser_min_range"
++       default="$(eval '0.2' if arg('backend') == 'real' else '0.1')"/>
++  <arg name="laser_max_range"
++       default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
++
++  <!-- hardware backend -->
++  <arg name="use_imu_yaw" default="true"/>
++  <arg name="chassis_port" default="/dev/carserial"/>
++  <arg name="imu_port" default="/dev/imu"/>
++  <arg name="lidar_port" default="/dev/lslidar"/>
++  <arg name="camera_device" default="/dev/video0"/>
++  <!-- The direct controller does not use the camera; keep it off to save CPU. -->
++  <arg name="camera" default="false"/>
++
++  <!-- direct controller -->
++  <arg name="waypoints_file"
++       default="$(find aic26_decision)/config/direct_test_waypoints.yaml"/>
++  <arg name="names" default=""/>
++  <arg name="start_at" default=""/>
++  <arg name="v_max" default="0.15"/>
++  <arg name="dry_run" default="false"/>
++  <arg name="check_only" default="false"/>
++  <arg name="require_backend"
++       default="$(eval 'sim' if arg('backend') == 'sim' else 'real')"/>
++
++  <include file="$(find aic26_bringup)/launch/backend.launch">
++    <arg name="backend" value="$(arg backend)"/>
++    <arg name="sim" value="$(arg sim)"/>
++    <arg name="day_night" value="$(arg day_night)"/>
++    <arg name="sky_time" value="$(arg sky_time)"/>
++    <arg name="show_view" value="$(arg show_view)"/>
++    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
++    <arg name="chassis_port" value="$(arg chassis_port)"/>
++    <arg name="chassis_initial_x" value="$(arg initial_pose_x)"/>
++    <arg name="chassis_initial_y" value="$(arg initial_pose_y)"/>
++    <arg name="chassis_initial_yaw" value="$(arg initial_pose_a)"/>
++    <arg name="imu_port" value="$(arg imu_port)"/>
++    <arg name="lidar_port" value="$(arg lidar_port)"/>
++    <arg name="camera" value="$(arg camera)"/>
++    <arg name="camera_device" value="$(arg camera_device)"/>
++    <arg name="teleop" value="false"/>
++  </include>
++
++  <!-- map_server + AMCL only: no move_base, no TEB, no costmaps. -->
++  <include file="$(find aic26_navigation)/launch/navigation.launch">
++    <arg name="map_file" value="$(arg map_file)"/>
++    <arg name="use_rviz" value="$(arg use_rviz)"/>
++    <arg name="node_delay" value="$(arg node_delay)"/>
++    <arg name="use_move_base" value="false"/>
++    <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
++    <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
++    <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
++    <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
++    <arg name="laser_min_range" value="$(arg laser_min_range)"/>
++    <arg name="laser_max_range" value="$(arg laser_max_range)"/>
++  </include>
++
++  <node name="direct_waypoint_controller" pkg="aic26_decision"
++        type="direct_waypoint_controller.py" output="screen"
++        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
++    <rosparam file="$(find aic26_decision)/config/direct_controller.yaml"
++              command="load"/>
++    <param name="waypoints_file" value="$(arg waypoints_file)"/>
++    <param name="names" value="$(arg names)"/>
++    <param name="start_at" value="$(arg start_at)"/>
++    <param name="v_max" value="$(arg v_max)" type="double"/>
++    <param name="dry_run" value="$(arg dry_run)" type="bool"/>
++    <param name="check_only" value="$(arg check_only)" type="bool"/>
++    <param name="require_backend" value="$(arg require_backend)"/>
++  </node>
++
++</launch>
+diff --git a/src/aic26_decision/CMakeLists.txt b/src/aic26_decision/CMakeLists.txt
+index ad2083f..10894c4 100644
+--- a/src/aic26_decision/CMakeLists.txt
++++ b/src/aic26_decision/CMakeLists.txt
+@@ -25,6 +25,7 @@ catkin_install_python(PROGRAMS
+   scripts/capture_cycle.py
+   scripts/demo_cycle.py
+   scripts/mission_controller.py
++  scripts/direct_waypoint_controller.py
+   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+ )
+ 
+diff --git a/src/aic26_decision/config/direct_controller.yaml b/src/aic26_decision/config/direct_controller.yaml
+new file mode 100644
+index 0000000..d7b160d
+--- /dev/null
++++ b/src/aic26_decision/config/direct_controller.yaml
+@@ -0,0 +1,91 @@
++# Parameters for direct_waypoint_controller.py (speech workspace).
++# Loaded into the node's private namespace by aic26_bringup/launch/direct.launch.
++
++# ---------------------------------------------------------------- waypoints
++waypoints_file: ""              # overridden by the launch file
++start_at: ""                    # start at this waypoint name, then follow file order
++names: ""                       # comma-separated names; overrides start_at
++loop: false
++max_loops: 0                    # 0 = unlimited (only used when loop is true)
++honor_dwell: false
++align_final_yaw: true
++continue_on_failure: false
++dry_run: false                  # publish zeros only, print intended commands
++dry_run_seconds: 10.0
++check_only: false               # validate waypoint segments against /map, then exit
++
++# ------------------------------------------------------------ frames/topics
++global_frame: map
++base_frame: base_footprint
++scan_topic: /scan
++odom_topic: /odom
++cmd_topic: /cmd_vel
++status_topic: /direct_waypoint/status
++control_rate: 20.0
++status_rate: 2.0
++laser_yaw_offset_deg: 0.0
++
++# ------------------------------------------------------------------ control
++v_max: 0.15
++v_min: 0.05
++w_max: 0.45
++turn_w_max: 0.35
++turn_w_min: 0.10
++k_d: 0.8
++k_theta: 1.0
++k_turn: 1.2
++stop_distance: 0.05
++position_tolerance: 0.08
++e_reorient: 0.60
++turn_tol: 0.06
++yaw_tol: 0.06
++settle_time: 0.30
++linear_accel: 0.5
++angular_accel: 1.0
++rotate_skip_distance: 0.25
++
++# ------------------------------------------------------------------- safety
++obstacle_half_angle_deg: 25.0
++obstacle_stop_distance: 0.25
++obstacle_resume_distance: 0.35
++obstacle_clear_hold: 0.8
++obstacle_wait: 10.0
++scan_timeout: 0.5
++tf_fail_timeout: 0.5
++tf_recovery_wait: 2.0
++use_amcl_watchdog: true
++# AMCL only publishes when its filter updates. The stale check is armed only
++# when /odom shows real motion, and stays latched until a fresh pose arrives.
++amcl_pose_timeout: 3.0
++odom_timeout: 0.5
++odom_moving_linear: 0.02
++odom_moving_angular: 0.05
++amcl_jump_xy: 0.30
++amcl_jump_yaw: 0.35
++amcl_cov_xy_max: 0.30
++amcl_cov_yaw_max: 0.10
++amcl_cov_hold: 0.5
++amcl_recovery_wait: 2.0
++exclusive_cmd: true
++cmd_check_period: 1.0
++allowed_cmd_publishers: []
++require_backend: real
++segment_check: true
++# Corridor half width for the static-map pre-check. The real footprint is
++# 0.284 x 0.272 m, so the lateral half width is 0.136 m.
++segment_half_width: 0.14
++map_occupied_threshold: 65
++map_unknown_blocked: true
++zero_burst_sec: 0.8
++zero_burst_rate: 20.0
++disable_chassis_on_exit: false
++chassis_enable_service: /chassis/enable
++
++# ----------------------------------------------------------------- timeouts
++ready_timeout: 60.0
++startup_settle: 2.0
++turn_timeout: 20.0
++drive_timeout: 120.0
++align_timeout: 15.0
++stall_window: 4.0
++stall_distance: 0.03
+diff --git a/src/aic26_decision/config/direct_test_waypoints.yaml b/src/aic26_decision/config/direct_test_waypoints.yaml
+new file mode 100644
+index 0000000..ac6aa57
+--- /dev/null
++++ b/src/aic26_decision/config/direct_test_waypoints.yaml
+@@ -0,0 +1,28 @@
++# Straight-line verification route for direct_waypoint_controller.py.
++#
++# These points are a SUBSET of real_waypoints.yaml along the top corridor.
++# The controller drives straight lines between consecutive points, so before
++# the first run always check the route against the map:
++#
++#   roslaunch aic26_bringup direct.launch backend:=real check_only:=true
++#
++# If a segment is reported blocked, add an intermediate waypoint along the
++# free corridor instead of widening the tolerance. The yaw values below are
++# the direction of travel, not the inspection headings of real_waypoints.yaml.
++
++waypoints:
++  - name: "traffic_light_1"
++    x: 0.6
++    y: 1.60
++    yaw: 3.141592
++    dwell: 0.0
++  - name: "station_1"
++    x: -1.0
++    y: 1.63
++    yaw: 3.141592
++    dwell: 0.0
++  - name: "corner_2"
++    x: -1.7
++    y: 1.65
++    yaw: 3.141592
++    dwell: 0.0
+diff --git a/src/aic26_decision/scripts/direct_waypoint_controller.py b/src/aic26_decision/scripts/direct_waypoint_controller.py
+new file mode 100755
+index 0000000..91aee11
+--- /dev/null
++++ b/src/aic26_decision/scripts/direct_waypoint_controller.py
+@@ -0,0 +1,986 @@
++#!/usr/bin/env python3
++# -*- coding: utf-8 -*-
++"""Drive to map-frame waypoints without move_base or TEB.
++
++The node replaces the move_base action client used by ``mission_common``
++with a small point-to-point controller that publishes ``/cmd_vel``
++directly:
++
++    ROTATE -> DRIVE -> ALIGN_YAW -> next waypoint
++
++* Pose feedback comes from the ``map`` -> ``base_footprint`` transform that
++  AMCL publishes; wheel odometry is never used for control.
++* The chassis stops on its own after ``cmd_timeout`` (0.5 s) without a
++  command, so the control loop runs at a fixed rate and always publishes.
++* Safety: front-sector lidar stop, TF/scan/AMCL watchdogs, an exclusive
++  ``/cmd_vel`` publisher check, a straight-segment check on the map, and a
++  zero-velocity burst on shutdown.
++
++This node is deliberately standalone: it does not import ``mission_common``
++(whose RobotDriver always creates a move_base action client) and it does
++not run the task/detection/speech logic of ``mission_controller``.
++
++Example:
++
++    roslaunch aic26_bringup direct.launch backend:=real \
++        names:="traffic_light_1" v_max:=0.10
++
++    # pre-flight only: check waypoint segments against the map, then exit
++    roslaunch aic26_bringup direct.launch backend:=real check_only:=true
++"""
++
++import math
++import os
++import time
++import traceback
++
++import rospy
++import rosgraph
++import rosnode
++import tf
++import yaml
++from geometry_msgs.msg import Twist
++from geometry_msgs.msg import PoseWithCovarianceStamped
++from nav_msgs.msg import OccupancyGrid, Odometry
++from sensor_msgs.msg import LaserScan
++from std_msgs.msg import String
++from tf.transformations import euler_from_quaternion
++
++
++def wrap_angle(angle):
++    """Normalise an angle to (-pi, pi]."""
++    return math.atan2(math.sin(angle), math.cos(angle))
++
++
++def clamp(value, low, high):
++    return max(low, min(high, value))
++
++
++class DirectWaypointController(object):
++    # Phase names used by the per-waypoint state machine.
++    ROTATE = 'ROTATE'
++    DRIVE_SETTLE = 'DRIVE_SETTLE'
++    DRIVE = 'DRIVE'
++    ALIGN_SETTLE = 'ALIGN_SETTLE'
++    ALIGN_YAW = 'ALIGN_YAW'
++    DONE_SETTLE = 'DONE_SETTLE'
++    DWELL = 'DWELL'
++
++    def __init__(self):
++        self.global_frame = rospy.get_param('~global_frame', 'map')
++        self.base_frame = rospy.get_param('~base_frame', 'base_footprint')
++        self.scan_topic = rospy.get_param('~scan_topic', '/scan')
++        self.odom_topic = rospy.get_param('~odom_topic', '/odom')
++        self.cmd_topic = rospy.get_param('~cmd_topic', '/cmd_vel')
++        self.status_topic = rospy.get_param(
++            '~status_topic', '/direct_waypoint/status')
++        self.control_rate = float(rospy.get_param('~control_rate', 20.0))
++        self.status_rate = float(rospy.get_param('~status_rate', 2.0))
++        self.laser_yaw_offset = math.radians(
++            float(rospy.get_param('~laser_yaw_offset_deg', 0.0)))
++
++        # waypoints and run mode
++        self.waypoints_file = rospy.get_param('~waypoints_file', '')
++        self.names = self._split_names(rospy.get_param('~names', ''))
++        self.start_at = rospy.get_param('~start_at', '')
++        self.loop = bool(rospy.get_param('~loop', False))
++        self.max_loops = int(rospy.get_param('~max_loops', 0))
++        self.continue_on_failure = bool(
++            rospy.get_param('~continue_on_failure', False))
++        self.honor_dwell = bool(rospy.get_param('~honor_dwell', False))
++        self.align_final_yaw = bool(
++            rospy.get_param('~align_final_yaw', True))
++        self.dry_run = bool(rospy.get_param('~dry_run', False))
++        self.dry_run_seconds = float(
++            rospy.get_param('~dry_run_seconds', 10.0))
++        self.check_only = bool(rospy.get_param('~check_only', False))
++
++        # control gains and limits
++        self.v_max = float(rospy.get_param('~v_max', 0.15))
++        self.v_min = float(rospy.get_param('~v_min', 0.05))
++        self.w_max = float(rospy.get_param('~w_max', 0.45))
++        self.turn_w_max = float(rospy.get_param('~turn_w_max', 0.35))
++        self.turn_w_min = float(rospy.get_param('~turn_w_min', 0.10))
++        self.k_d = float(rospy.get_param('~k_d', 0.8))
++        self.k_theta = float(rospy.get_param('~k_theta', 1.0))
++        self.k_turn = float(rospy.get_param('~k_turn', 1.2))
++        self.stop_distance = float(rospy.get_param('~stop_distance', 0.05))
++        self.position_tolerance = float(
++            rospy.get_param('~position_tolerance', 0.08))
++        self.e_reorient = float(rospy.get_param('~e_reorient', 0.60))
++        self.turn_tol = float(rospy.get_param('~turn_tol', 0.06))
++        self.yaw_tol = float(rospy.get_param('~yaw_tol', 0.06))
++        self.settle_time = float(rospy.get_param('~settle_time', 0.30))
++        self.linear_accel = float(rospy.get_param('~linear_accel', 0.5))
++        self.angular_accel = float(rospy.get_param('~angular_accel', 1.0))
++        self.rotate_skip_distance = float(
++            rospy.get_param('~rotate_skip_distance', 0.25))
++
++        # safety
++        self.obstacle_half_angle = math.radians(
++            float(rospy.get_param('~obstacle_half_angle_deg', 25.0)))
++        self.obstacle_stop_distance = float(
++            rospy.get_param('~obstacle_stop_distance', 0.25))
++        self.obstacle_resume_distance = float(
++            rospy.get_param('~obstacle_resume_distance', 0.35))
++        self.obstacle_clear_hold = float(
++            rospy.get_param('~obstacle_clear_hold', 0.8))
++        self.obstacle_wait = float(rospy.get_param('~obstacle_wait', 10.0))
++        self.scan_timeout = float(rospy.get_param('~scan_timeout', 0.5))
++        self.tf_fail_timeout = float(
++            rospy.get_param('~tf_fail_timeout', 0.5))
++        self.tf_recovery_wait = float(
++            rospy.get_param('~tf_recovery_wait', 2.0))
++        self.use_amcl_watchdog = bool(
++            rospy.get_param('~use_amcl_watchdog', True))
++        self.amcl_pose_timeout = float(
++            rospy.get_param('~amcl_pose_timeout', 3.0))
++        self.odom_timeout = float(rospy.get_param('~odom_timeout', 0.5))
++        self.odom_moving_linear = float(
++            rospy.get_param('~odom_moving_linear', 0.02))
++        self.odom_moving_angular = float(
++            rospy.get_param('~odom_moving_angular', 0.05))
++        self.amcl_jump_xy = float(rospy.get_param('~amcl_jump_xy', 0.30))
++        self.amcl_jump_yaw = float(rospy.get_param('~amcl_jump_yaw', 0.35))
++        self.amcl_cov_xy_max = float(
++            rospy.get_param('~amcl_cov_xy_max', 0.30))
++        self.amcl_cov_yaw_max = float(
++            rospy.get_param('~amcl_cov_yaw_max', 0.10))
++        self.amcl_cov_hold = float(rospy.get_param('~amcl_cov_hold', 0.5))
++        self.amcl_recovery_wait = float(
++            rospy.get_param('~amcl_recovery_wait', 2.0))
++        self.exclusive_cmd = bool(
++            rospy.get_param('~exclusive_cmd', True))
++        self.cmd_check_period = float(
++            rospy.get_param('~cmd_check_period', 1.0))
++        allowed = rospy.get_param('~allowed_cmd_publishers', [])
++        self.allowed_cmd_publishers = set(allowed)
++        self.require_backend = rospy.get_param('~require_backend', 'real')
++
++        self.segment_check = bool(
++            rospy.get_param('~segment_check', True))
++        self.segment_half_width = float(
++            rospy.get_param('~segment_half_width', 0.15))
++        self.map_occupied_threshold = int(
++            rospy.get_param('~map_occupied_threshold', 65))
++        self.map_unknown_blocked = bool(
++            rospy.get_param('~map_unknown_blocked', True))
++
++        self.zero_burst_sec = float(
++            rospy.get_param('~zero_burst_sec', 0.8))
++        self.zero_burst_rate = float(
++            rospy.get_param('~zero_burst_rate', 20.0))
++        self.disable_chassis_on_exit = bool(
++            rospy.get_param('~disable_chassis_on_exit', False))
++        self.chassis_enable_service = rospy.get_param(
++            '~chassis_enable_service', '/chassis/enable')
++
++        # timeouts
++        self.ready_timeout = float(rospy.get_param('~ready_timeout', 60.0))
++        self.startup_settle = float(
++            rospy.get_param('~startup_settle', 2.0))
++        self.turn_timeout = float(rospy.get_param('~turn_timeout', 20.0))
++        self.drive_timeout = float(rospy.get_param('~drive_timeout', 120.0))
++        self.align_timeout = float(rospy.get_param('~align_timeout', 15.0))
++        self.stall_window = float(rospy.get_param('~stall_window', 4.0))
++        self.stall_distance = float(
++            rospy.get_param('~stall_distance', 0.03))
++
++        # runtime state
++        self.scan_msg = None
++        self.scan_stamp = 0.0
++        self.odom_stamp = 0.0
++        self.odom_twist = (0.0, 0.0, 0.0)
++        self.map_msg = None
++        self.amcl_cov = (0.0, 0.0, 0.0)
++        self.amcl_stamp = 0.0
++        self.amcl_jump_time = 0.0
++        self.amcl_cov_bad_since = None
++        self._amcl_stalled = False
++        self._prev_amcl = None
++
++        self.v_cmd = 0.0
++        self.w_cmd = 0.0
++        self._cmd_conflict = None
++        self._tf_fail_since = None
++        self._blocked_since = None
++        self._block_reason = ''
++        self._obstacle_held = False
++        self._obstacle_clear_since = None
++        self._last_cmd_check = 0.0
++        self._last_status = 0.0
++        self._shutdown_done = False
++        self._status = 'STARTING'
++
++        self.rate = rospy.Rate(self.control_rate)
++        self.cmd_pub = rospy.Publisher(
++            self.cmd_topic, Twist, queue_size=10)
++        self.status_pub = rospy.Publisher(
++            self.status_topic, String, queue_size=10)
++        self.tf_listener = tf.TransformListener()
++        rospy.Subscriber(self.scan_topic, LaserScan, self._on_scan,
++                         queue_size=1)
++        rospy.Subscriber(self.odom_topic, Odometry, self._on_odom,
++                         queue_size=1)
++        rospy.Subscriber('/amcl_pose', PoseWithCovarianceStamped,
++                         self._on_amcl, queue_size=1)
++        rospy.Subscriber('/map', OccupancyGrid, self._on_map, queue_size=1)
++        rospy.on_shutdown(self._on_shutdown)
++
++    # ------------------------------------------------------------ callbacks
++    @staticmethod
++    def _split_names(value):
++        if not value:
++            return []
++        return [name.strip() for name in str(value).split(',')
++                if name.strip()]
++
++    def _on_scan(self, msg):
++        self.scan_msg = msg
++        self.scan_stamp = time.time()
++
++    def _on_map(self, msg):
++        self.map_msg = msg
++
++    def _on_odom(self, msg):
++        self.odom_stamp = time.time()
++        twist = msg.twist.twist
++        self.odom_twist = (twist.linear.x, twist.linear.y,
++                           twist.angular.z)
++
++    def _odom_moving(self, now):
++        """True when the wheels report real motion (not just a command)."""
++        if self.odom_stamp == 0.0 or now - self.odom_stamp > self.odom_timeout:
++            return False
++        vx, vy, wz = self.odom_twist
++        return (abs(vx) > self.odom_moving_linear or
++                abs(vy) > self.odom_moving_linear or
++                abs(wz) > self.odom_moving_angular)
++
++    def _on_amcl(self, msg):
++        now = time.time()
++        pose = msg.pose.pose
++        yaw = euler_from_quaternion([
++            pose.orientation.x, pose.orientation.y,
++            pose.orientation.z, pose.orientation.w])[2]
++        if self._prev_amcl is not None:
++            px, py, pyaw, ptime = self._prev_amcl
++            if now - ptime <= 2.0:
++                jump = math.hypot(pose.position.x - px,
++                                  pose.position.y - py)
++                dyaw = abs(wrap_angle(yaw - pyaw))
++                if jump > self.amcl_jump_xy or dyaw > self.amcl_jump_yaw:
++                    rospy.logwarn(
++                        'AMCL jumped %.2f m / %.2f rad in one update; '
++                        'holding motion', jump, dyaw)
++                    self.amcl_jump_time = now
++        self._prev_amcl = (pose.position.x, pose.position.y, yaw, now)
++        cov = msg.pose.covariance
++        self.amcl_cov = (cov[0], cov[7], cov[35])
++        self.amcl_stamp = now
++
++    # ------------------------------------------------------------- waypoints
++    def _load_waypoints(self, path):
++        if not path:
++            raise RuntimeError('~waypoints_file is empty')
++        if not os.path.exists(path):
++            raise RuntimeError('waypoints file not found: %s' % path)
++        with open(path, encoding='utf-8') as handle:
++            data = yaml.safe_load(handle) or {}
++        correction = data.get('frame_correction') or {}
++        cx = float(correction.get('x', 0.0))
++        cy = float(correction.get('y', 0.0))
++        cyaw = float(correction.get('yaw', 0.0))
++        waypoints = []
++        for item in data.get('waypoints', []):
++            x = float(item['x'])
++            y = float(item['y'])
++            yaw = float(item.get('yaw', 0.0))
++            if cx or cy or cyaw:
++                cos_a = math.cos(cyaw)
++                sin_a = math.sin(cyaw)
++                x, y = (cos_a * x - sin_a * y + cx,
++                        sin_a * x + cos_a * y + cy)
++                yaw = wrap_angle(yaw + cyaw)
++            waypoints.append({
++                'name': str(item['name']),
++                'x': x,
++                'y': y,
++                'yaw': yaw,
++                'dwell': float(item.get('dwell') or 0.0),
++            })
++        if not waypoints:
++            raise RuntimeError('no waypoints in %s' % path)
++        return waypoints
++
++    def _select_waypoints(self, waypoints):
++        by_name = {wp['name']: wp for wp in waypoints}
++        if self.names:
++            missing = [n for n in self.names if n not in by_name]
++            if missing:
++                raise RuntimeError(
++                    'unknown waypoint name(s): %s' % ', '.join(missing))
++            return [by_name[name] for name in self.names]
++        if self.start_at:
++            names = [wp['name'] for wp in waypoints]
++            if self.start_at not in names:
++                raise RuntimeError(
++                    'start_at waypoint not found: %s' % self.start_at)
++            return waypoints[names.index(self.start_at):]
++        return waypoints
++
++    # ------------------------------------------------------------------ pose
++    def _lookup_pose(self):
++        try:
++            translation, rotation = self.tf_listener.lookupTransform(
++                self.global_frame, self.base_frame, rospy.Time(0))
++        except (tf.LookupException, tf.ConnectivityException,
++                tf.ExtrapolationException):
++            return None
++        yaw = euler_from_quaternion(rotation)[2]
++        return translation[0], translation[1], yaw
++
++    # ---------------------------------------------------------------- safety
++    def _front_min(self):
++        msg = self.scan_msg
++        if msg is None:
++            return float('inf')
++        limit = min(msg.range_max, 6.0)
++        best = float('inf')
++        angle = msg.angle_min
++        for distance in msg.ranges:
++            if math.isfinite(distance) and \
++                    msg.range_min < distance <= limit:
++                bearing = wrap_angle(angle - self.laser_yaw_offset)
++                if abs(bearing) <= self.obstacle_half_angle and \
++                        distance < best:
++                    best = distance
++            angle += msg.angle_increment
++        return best
++
++    def _safety_state(self, now):
++        """Return ('ok'|'blocked'|'fatal', reason)."""
++        if self._cmd_conflict:
++            return 'fatal', self._cmd_conflict
++
++        # lidar front sector, with hysteresis so a marginal reading does not
++        # toggle the robot on and off
++        front = self._front_min()
++        if self.scan_msg is None or now - self.scan_stamp > self.scan_timeout:
++            return 'blocked', 'scan timeout'
++        if front < self.obstacle_stop_distance:
++            self._obstacle_held = True
++            self._obstacle_clear_since = None
++            return 'blocked', 'obstacle at %.2f m' % front
++        if self._obstacle_held:
++            if front < self.obstacle_resume_distance:
++                self._obstacle_clear_since = None
++                return 'blocked', 'obstacle clearing (%.2f m)' % front
++            if self._obstacle_clear_since is None:
++                self._obstacle_clear_since = now
++            elif now - self._obstacle_clear_since < self.obstacle_clear_hold:
++                return 'blocked', 'obstacle clear hold'
++            else:
++                self._obstacle_held = False
++                self._obstacle_clear_since = None
++
++        if not self.use_amcl_watchdog:
++            return 'ok', ''
++
++        # AMCL only publishes /amcl_pose when its filter updates, and the
++        # filter stops updating while the robot is stationary. Arm the stale
++        # check only when odometry shows real motion, and latch it until a
++        # fresh pose arrives: clearing it from inside the blocked branch
++        # (which stops the robot) would make the watchdog flap every few
++        # seconds.
++        stale = (self.amcl_stamp > 0.0 and
++                 now - self.amcl_stamp > self.amcl_pose_timeout)
++        if stale and self._odom_moving(now):
++            if not self._amcl_stalled:
++                rospy.logwarn(
++                    'AMCL pose is %.1f s old while odometry is moving; '
++                    'holding until it refreshes', now - self.amcl_stamp)
++            self._amcl_stalled = True
++        elif self._amcl_stalled and not stale:
++            rospy.loginfo('AMCL pose refreshed; resuming')
++            self._amcl_stalled = False
++        if self._amcl_stalled:
++            return 'blocked', 'amcl pose stale'
++        if now - self.amcl_jump_time < self.amcl_recovery_wait:
++            return 'blocked', 'amcl jump'
++
++        cov_xy = max(self.amcl_cov[0], self.amcl_cov[1])
++        cov_yaw = self.amcl_cov[2]
++        if cov_xy > self.amcl_cov_xy_max or cov_yaw > self.amcl_cov_yaw_max:
++            if self.amcl_cov_bad_since is None:
++                self.amcl_cov_bad_since = now
++            elif now - self.amcl_cov_bad_since > self.amcl_cov_hold:
++                return 'blocked', 'amcl covariance high'
++        else:
++            self.amcl_cov_bad_since = None
++        return 'ok', ''
++
++    def _check_cmd_owners(self):
++        """Return the set of nodes currently publishing on the cmd topic."""
++        try:
++            master = rosgraph.Master(rospy.get_name())
++            state = master.getSystemState()
++        except Exception as err:  # noqa: BLE001
++            rospy.logwarn('could not query ROS master: %s', err)
++            return set()
++        owners = set()
++        for topic, nodes in state[0]:
++            if topic == self.cmd_topic:
++                owners.update(nodes)
++        return owners
++
++    def _verify_cmd_exclusive(self):
++        owners = self._check_cmd_owners()
++        others = owners - {rospy.get_name()} - self.allowed_cmd_publishers
++        if others:
++            self._cmd_conflict = (
++                'another node publishes %s: %s' %
++                (self.cmd_topic, ', '.join(sorted(others))))
++            rospy.logerr(self._cmd_conflict)
++            return False
++        return True
++
++    def _check_backend(self):
++        try:
++            nodes = set(rosnode.get_node_names())
++        except Exception as err:  # noqa: BLE001
++            rospy.logwarn('could not query the ROS node list: %s', err)
++            return True
++        has_chassis = '/chassis' in nodes
++        has_gazebo = '/gazebo' in nodes
++        if has_chassis and has_gazebo:
++            rospy.logfatal('both /chassis and /gazebo are running; '
++                           'stop one of them before driving')
++            return False
++        if self.require_backend == 'real' and has_gazebo:
++            rospy.logfatal('require_backend=real but /gazebo is running')
++            return False
++        if self.require_backend == 'sim' and has_chassis:
++            rospy.logfatal('require_backend=sim but /chassis is running')
++            return False
++        if self.require_backend == 'real' and not has_chassis:
++            return True          # may still be starting up
++        if self.require_backend == 'sim' and not has_gazebo:
++            return True
++        return True
++
++    # ------------------------------------------------------------- map check
++    def _segment_clear(self, x0, y0, x1, y1):
++        """Return (ok, why); the corridor is checked on the static map.
++
++        Distance is measured from each sample point to the edge of the
++        nearest occupied/unknown cell rectangle, not by a cell-count radius:
++        a cell-count radius overshoots by half a cell and turns borderline
++        waypoints near a wall into false positives.
++        """
++        if not self.segment_check:
++            return True, ''
++        if self.map_msg is None:
++            return True, 'map not available; segment not checked'
++        info = self.map_msg.info
++        resolution = info.resolution
++        if resolution <= 0.0:
++            return True, ''
++        radius = int(math.ceil(self.segment_half_width / resolution)) + 1
++        half_cell = 0.5 * resolution
++        length = math.hypot(x1 - x0, y1 - y0)
++        if length < 1e-6:
++            return True, ''
++        step = max(resolution, 0.05)
++        samples = max(1, int(length / step))
++        # Do not reject a segment because the robot currently sits close to a
++        # wall; start checking a little ahead of the current pose.
++        skip = min(0.10, length * 0.2)
++        for index in range(samples + 1):
++            ratio = float(index) / samples
++            if ratio * length < skip:
++                continue
++            x = x0 + (x1 - x0) * ratio
++            y = y0 + (y1 - y0) * ratio
++            base_x = int(math.floor(
++                (x - info.origin.position.x) / resolution))
++            base_y = int(math.floor(
++                (y - info.origin.position.y) / resolution))
++            for dx in range(-radius, radius + 1):
++                for dy in range(-radius, radius + 1):
++                    mx = base_x + dx
++                    my = base_y + dy
++                    if not (0 <= mx < info.width and 0 <= my < info.height):
++                        return False, 'outside map at (%.2f, %.2f)' % (x, y)
++                    value = self.map_msg.data[my * info.width + mx]
++                    unknown = value < 0 and self.map_unknown_blocked
++                    if not unknown and value < self.map_occupied_threshold:
++                        continue
++                    center_x = info.origin.position.x + \
++                        (mx + 0.5) * resolution
++                    center_y = info.origin.position.y + \
++                        (my + 0.5) * resolution
++                    edge_x = max(0.0, abs(x - center_x) - half_cell)
++                    edge_y = max(0.0, abs(y - center_y) - half_cell)
++                    if math.hypot(edge_x, edge_y) < self.segment_half_width \
++                            - 1e-6:
++                        kind = 'unknown' if unknown else 'occupied'
++                        return False, '%s map cell near (%.2f, %.2f) ' \
++                            '(sample %.2f, %.2f)' % (
++                                kind, center_x, center_y, x, y)
++        return True, ''
++
++    def _run_check_only(self, waypoints):
++        pose = self._lookup_pose()
++        if pose is None:
++            rospy.logerr('check_only: no %s -> %s transform',
++                         self.global_frame, self.base_frame)
++            return
++        current = {'name': '<current pose>',
++                   'x': pose[0], 'y': pose[1]}
++        chain = [current] + waypoints
++        failures = 0
++        for start, goal in zip(chain[:-1], chain[1:]):
++            distance = math.hypot(goal['x'] - start['x'],
++                                  goal['y'] - start['y'])
++            ok, why = self._segment_clear(
++                start['x'], start['y'], goal['x'], goal['y'])
++            if ok:
++                rospy.loginfo('CHECK PASS %-24s -> %-24s %.2f m',
++                              start['name'], goal['name'], distance)
++            else:
++                failures += 1
++                rospy.logerr('CHECK FAIL %-24s -> %-24s %.2f m: %s',
++                             start['name'], goal['name'], distance, why)
++        if failures:
++            rospy.logerr('%d segment(s) blocked; add intermediate waypoints '
++                         'or move them away from walls', failures)
++        else:
++            rospy.loginfo('all %d segment(s) clear', len(chain) - 1)
++
++    # -------------------------------------------------------------- commands
++    def _send(self, linear, angular):
++        msg = Twist()
++        if not self.dry_run:
++            msg.linear.x = linear
++            msg.angular.z = angular
++        self.cmd_pub.publish(msg)
++
++    def _stop(self):
++        self.v_cmd = 0.0
++        self.w_cmd = 0.0
++        self._send(0.0, 0.0)
++
++    def _ramp(self, linear, angular):
++        period = 1.0 / self.control_rate
++        linear = clamp(linear,
++                       self.v_cmd - self.linear_accel * period,
++                       self.v_cmd + self.linear_accel * period)
++        angular = clamp(angular,
++                        self.w_cmd - self.angular_accel * period,
++                        self.w_cmd + self.angular_accel * period)
++        angular = clamp(angular, -self.w_max, self.w_max)
++        self.v_cmd = linear
++        self.w_cmd = angular
++        self._send(linear, angular)
++
++    def _rotate_command(self, target_yaw, yaw):
++        error = wrap_angle(target_yaw - yaw)
++        if abs(error) <= self.turn_tol:
++            return 0.0, 0.0, error
++        speed = clamp(abs(self.k_turn * error),
++                      self.turn_w_min, self.turn_w_max)
++        return 0.0, math.copysign(speed, error), error
++
++    def _drive_command(self, waypoint, x, y, yaw):
++        distance = math.hypot(waypoint['x'] - x, waypoint['y'] - y)
++        bearing = math.atan2(waypoint['y'] - y, waypoint['x'] - x)
++        error = wrap_angle(bearing - yaw)
++        if abs(error) > self.e_reorient:
++            speed = clamp(abs(self.k_turn * error),
++                          self.turn_w_min, self.turn_w_max)
++            return 0.0, math.copysign(speed, error), distance, error
++        linear = self.k_d * max(0.0, distance - self.stop_distance)
++        if distance > 0.20:
++            linear = max(linear, self.v_min)
++        linear = min(linear, self.v_max)
++        linear *= max(0.35, 1.0 - abs(error) / self.e_reorient)
++        angular = clamp(self.k_theta * error, -self.w_max, self.w_max)
++        return linear, angular, distance, error
++
++    def _status_update(self, waypoint, phase, distance, error):
++        now = time.time()
++        self._status = 'waypoint=%s phase=%s distance=%.2f ' \
++                       'heading_error=%.2f v=%.2f w=%.2f' % (
++                           waypoint['name'], phase, distance, error,
++                           self.v_cmd, self.w_cmd)
++        if now - self._last_status < 1.0 / max(self.status_rate, 0.1):
++            return
++        self._last_status = now
++        self.status_pub.publish(String(data=self._status))
++        if self.dry_run:
++            rospy.loginfo('dry-run: %s (would publish v=%.2f w=%.2f)',
++                          self._status, self.v_cmd, self.w_cmd)
++
++    # ------------------------------------------------------------------- run
++    def _wait_ready(self):
++        deadline = time.time() + self.ready_timeout
++        while not rospy.is_shutdown():
++            if not self._check_backend():
++                raise RuntimeError('backend check failed')
++            pose = self._lookup_pose()
++            scan_ok = (self.scan_msg is not None and
++                       time.time() - self.scan_stamp <= self.scan_timeout)
++            map_ok = self.map_msg is not None
++            if pose is not None and map_ok and (scan_ok or self.check_only):
++                break
++            if time.time() > deadline:
++                raise RuntimeError(
++                    'not ready after %.0f s (tf=%s scan=%s map=%s)' % (
++                        self.ready_timeout, pose is not None, scan_ok,
++                        map_ok))
++            self.rate.sleep()
++
++        if self.exclusive_cmd:
++            time.sleep(0.2)      # let our publisher register with the master
++            if not self._verify_cmd_exclusive():
++                raise RuntimeError('another /cmd_vel publisher is running')
++        if not self.require_backend == 'any':
++            # give the expected backend node a few more seconds to appear
++            deadline = time.time() + 5.0
++            while not rospy.is_shutdown():
++                nodes = set(rosnode.get_node_names())
++                expected = '/chassis' if self.require_backend == 'real' \
++                    else '/gazebo'
++                if expected in nodes:
++                    break
++                if time.time() > deadline:
++                    rospy.logwarn(
++                        'expected backend node %s not found; continuing',
++                        expected)
++                    break
++                rospy.sleep(0.2)
++
++        rospy.loginfo('ready: pose, %s, map and lidar are available',
++                      self.cmd_topic)
++        end = time.time() + self.startup_settle
++        while not rospy.is_shutdown() and time.time() < end:
++            self._stop()
++            self.rate.sleep()
++
++    def _run_dry_run(self, waypoints):
++        waypoint = waypoints[0]
++        deadline = time.time() + self.dry_run_seconds
++        rospy.loginfo('dry-run for %.0f s; no non-zero /cmd_vel is sent',
++                      self.dry_run_seconds)
++        while not rospy.is_shutdown() and time.time() < deadline:
++            state, reason = self._safety_state(time.time())
++            pose = self._lookup_pose()
++            if pose is None:
++                self._stop()
++                self.rate.sleep()
++                continue
++            if state == 'blocked':
++                self._stop()
++                self._status_update(waypoint, 'BLOCKED', 0.0, 0.0)
++                self.rate.sleep()
++                continue
++            linear, angular, distance, error = self._drive_command(
++                waypoint, *pose)
++            self.v_cmd = linear
++            self.w_cmd = angular
++            self._send(linear, angular)
++            self._status_update(waypoint, 'DRY_DRIVE', distance, error)
++            self.rate.sleep()
++        self._stop()
++
++    def _drive_waypoint(self, waypoint):
++        self._status = 'waypoint=%s starting' % waypoint['name']
++        rospy.loginfo('waypoint %s: (%.2f, %.2f, %.2f rad)',
++                      waypoint['name'], waypoint['x'], waypoint['y'],
++                      waypoint['yaw'])
++        pose = self._lookup_pose()
++        if pose is None:
++            rospy.logerr('no pose before waypoint %s', waypoint['name'])
++            return False
++        if self.segment_check and not self.check_only:
++            ok, why = self._segment_clear(
++                pose[0], pose[1], waypoint['x'], waypoint['y'])
++            if not ok:
++                rospy.logerr(
++                    'straight segment to %s is blocked (%s); add an '
++                    'intermediate waypoint', waypoint['name'], why)
++                return False
++
++        phase = self.ROTATE
++        phase_since = time.time()
++        deadline = phase_since
++        turn_ticks = 0
++        position_ticks = 0
++        stall_pose = pose
++        stall_since = phase_since
++        self._blocked_since = None
++        self._block_reason = ''
++
++        while not rospy.is_shutdown():
++            now = time.time()
++            if self.exclusive_cmd and \
++                    now - self._last_cmd_check > self.cmd_check_period:
++                self._last_cmd_check = now
++                if not self._verify_cmd_exclusive():
++                    self._stop()
++                    return False
++
++            state, reason = self._safety_state(now)
++            if state == 'fatal':
++                self._stop()
++                rospy.logerr('fatal: %s', reason)
++                return False
++
++            pose = self._lookup_pose()
++            if pose is None:
++                self._stop()
++                if self._tf_fail_since is None:
++                    self._tf_fail_since = now
++                elif now - self._tf_fail_since > self.tf_fail_timeout:
++                    if now - self._tf_fail_since > \
++                            self.tf_fail_timeout + self.tf_recovery_wait:
++                        rospy.logerr(
++                            'lost %s -> %s tf for %.1f s; waypoint %s '
++                            'failed', self.global_frame, self.base_frame,
++                            now - self._tf_fail_since, waypoint['name'])
++                        return False
++                    self._status_update(waypoint, 'TF_WAIT', 0.0, 0.0)
++                self.rate.sleep()
++                continue
++            self._tf_fail_since = None
++
++            if state == 'blocked':
++                self._stop()
++                if self._blocked_since is None:
++                    self._blocked_since = now
++                    self._block_reason = reason
++                    rospy.logwarn('holding: %s', reason)
++                if now - self._blocked_since > self.obstacle_wait:
++                    rospy.logerr('blocked for %.1f s (%s); waypoint %s '
++                                 'failed', now - self._blocked_since,
++                                 reason, waypoint['name'])
++                    return False
++                self._status_update(waypoint, 'BLOCKED', 0.0, 0.0)
++                self.rate.sleep()
++                continue
++            if self._blocked_since is not None:
++                rospy.loginfo('blocked for %.1f s, resuming waypoint %s '
++                              'from ROTATE', now - self._blocked_since,
++                              waypoint['name'])
++                self._blocked_since = None
++                phase = self.ROTATE
++                phase_since = now
++                turn_ticks = 0
++                position_ticks = 0
++                stall_pose = pose
++                stall_since = now
++
++            x, y, yaw = pose
++            distance = math.hypot(waypoint['x'] - x, waypoint['y'] - y)
++
++            if phase == self.ROTATE:
++                bearing = math.atan2(waypoint['y'] - y,
++                                     waypoint['x'] - x)
++                linear, angular, error = self._rotate_command(bearing, yaw)
++                if distance <= self.rotate_skip_distance or \
++                        abs(error) <= self.turn_tol:
++                    turn_ticks += 1
++                    self._stop()
++                    if turn_ticks >= 3:
++                        phase = self.DRIVE_SETTLE
++                        phase_since = now
++                        deadline = now + self.settle_time
++                        turn_ticks = 0
++                else:
++                    turn_ticks = 0
++                    self._ramp(linear, angular)
++                if now - phase_since > self.turn_timeout:
++                    rospy.logerr('rotate timeout at %s', waypoint['name'])
++                    return False
++                self._status_update(waypoint, phase, distance, error)
++
++            elif phase == self.DRIVE_SETTLE:
++                self._stop()
++                if now >= deadline:
++                    phase = self.DRIVE
++                    phase_since = now
++                    stall_pose = pose
++                    stall_since = now
++                self._status_update(waypoint, phase, distance, 0.0)
++
++            elif phase == self.DRIVE:
++                linear, angular, distance, error = self._drive_command(
++                    waypoint, x, y, yaw)
++                if distance <= self.position_tolerance:
++                    position_ticks += 1
++                    self._stop()
++                    if position_ticks >= 2:
++                        phase = self.ALIGN_SETTLE
++                        phase_since = now
++                        deadline = now + self.settle_time
++                        position_ticks = 0
++                else:
++                    position_ticks = 0
++                    self._ramp(linear, angular)
++                    moved = math.hypot(x - stall_pose[0],
++                                       y - stall_pose[1])
++                    if now - stall_since > self.stall_window:
++                        if moved < self.stall_distance:
++                            rospy.logerr(
++                                'no progress for %.1f s at %s; stopping',
++                                now - stall_since, waypoint['name'])
++                            return False
++                        stall_pose = pose
++                        stall_since = now
++                if now - phase_since > self.drive_timeout:
++                    rospy.logerr('drive timeout at %s', waypoint['name'])
++                    return False
++                self._status_update(waypoint, phase, distance, error)
++
++            elif phase == self.ALIGN_SETTLE:
++                self._stop()
++                if now >= deadline:
++                    if self.align_final_yaw:
++                        phase = self.ALIGN_YAW
++                        phase_since = now
++                        turn_ticks = 0
++                    else:
++                        phase = self.DONE_SETTLE
++                        phase_since = now
++                        deadline = now + self.settle_time
++
++            elif phase == self.ALIGN_YAW:
++                linear, angular, error = self._rotate_command(
++                    waypoint['yaw'], yaw)
++                if abs(error) <= self.yaw_tol:
++                    turn_ticks += 1
++                    self._stop()
++                    if turn_ticks >= 3:
++                        phase = self.DONE_SETTLE
++                        phase_since = now
++                        deadline = now + self.settle_time
++                        turn_ticks = 0
++                else:
++                    turn_ticks = 0
++                    self._ramp(linear, angular)
++                if now - phase_since > self.align_timeout:
++                    rospy.logerr('yaw alignment timeout at %s',
++                                 waypoint['name'])
++                    return False
++                self._status_update(waypoint, phase, distance, error)
++
++            elif phase == self.DONE_SETTLE:
++                self._stop()
++                if now >= deadline:
++                    final = self._lookup_pose()
++                    if final is not None:
++                        position_error = math.hypot(
++                            waypoint['x'] - final[0],
++                            waypoint['y'] - final[1])
++                        yaw_error = abs(wrap_angle(
++                            waypoint['yaw'] - final[2]))
++                        rospy.loginfo(
++                            'reached %s: position error %.3f m, yaw error '
++                            '%.3f rad', waypoint['name'], position_error,
++                            yaw_error)
++                    if self.honor_dwell and waypoint['dwell'] > 0.0:
++                        phase = self.DWELL
++                        deadline = now + waypoint['dwell']
++                    else:
++                        return True
++
++            elif phase == self.DWELL:
++                self._stop()
++                if now >= deadline:
++                    return True
++
++            self.rate.sleep()
++        return False
++
++    def run(self):
++        waypoints = self._select_waypoints(
++            self._load_waypoints(self.waypoints_file))
++        rospy.loginfo('%d waypoint(s) selected; control rate %.0f Hz',
++                      len(waypoints), self.control_rate)
++        self._wait_ready()
++
++        if self.check_only:
++            self._run_check_only(waypoints)
++            return
++        if self.dry_run:
++            self._run_dry_run(waypoints)
++            return
++
++        loops = 0
++        while not rospy.is_shutdown():
++            for waypoint in waypoints:
++                if rospy.is_shutdown():
++                    return
++                if not self._drive_waypoint(waypoint):
++                    if not self.continue_on_failure:
++                        rospy.logerr('aborting route at %s',
++                                     waypoint['name'])
++                        return
++            loops += 1
++            if not self.loop:
++                return
++            if self.max_loops and loops >= self.max_loops:
++                return
++
++    # -------------------------------------------------------------- shutdown
++    def _zero_burst(self):
++        period = 1.0 / max(self.zero_burst_rate, 1.0)
++        count = int(round(self.zero_burst_sec * self.zero_burst_rate))
++        for _ in range(max(1, count)):
++            try:
++                self._send(0.0, 0.0)
++            except Exception:  # noqa: BLE001
++                break
++            time.sleep(period)
++        self.v_cmd = 0.0
++        self.w_cmd = 0.0
++
++    def shutdown(self):
++        if self._shutdown_done:
++            return
++        self._shutdown_done = True
++        try:
++            self._zero_burst()
++        except Exception:  # noqa: BLE001
++            pass
++        if self.disable_chassis_on_exit:
++            try:
++                from std_srvs.srv import SetBool
++                rospy.wait_for_service(
++                    self.chassis_enable_service, timeout=1.0)
++                rospy.ServiceProxy(
++                    self.chassis_enable_service, SetBool)(False)
++                rospy.logwarn('chassis disabled on exit')
++            except Exception as err:  # noqa: BLE001
++                rospy.logwarn('could not disable chassis: %s', err)
++
++    def _on_shutdown(self):
++        self.shutdown()
++
++
++def main():
++    rospy.init_node('direct_waypoint_controller')
++    controller = DirectWaypointController()
++    try:
++        controller.run()
++    except Exception as err:  # noqa: BLE001
++        rospy.logerr('direct controller stopped: %s', err)
++        rospy.logerr(traceback.format_exc())
++    finally:
++        controller.shutdown()
++    rospy.signal_shutdown('direct waypoint controller finished')
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/src/aic26_navigation/launch/navigation.launch b/src/aic26_navigation/launch/navigation.launch
+index ae8b71a..f4296d8 100644
+--- a/src/aic26_navigation/launch/navigation.launch
++++ b/src/aic26_navigation/launch/navigation.launch
+@@ -15,6 +15,9 @@
+   <arg name="initial_pose_a" default="3.141592"/>
+   <arg name="laser_min_range" default="0.1"/>
+   <arg name="laser_max_range" default="12.0"/>
++  <!-- Set false to run a controller that publishes
++       /cmd_vel itself (e.g. direct.launch). -->
++  <arg name="use_move_base" default="true"/>
+ 
+   <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"
+         launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
+@@ -30,34 +33,36 @@
+     <param name="laser_max_range" value="$(arg laser_max_range)" type="double"/>
+   </node>
+ 
+-  <node name="move_base" pkg="move_base" type="move_base" output="screen"
+-        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+-              command="load" ns="global_costmap"/>
+-    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+-              command="load" ns="local_costmap"/>
+-    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
+-              command="load"/>
+-    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
+-              command="load"/>
+-    <!-- global_planner_params.yaml already has a GlobalPlanner root key;
+-         adding ns="GlobalPlanner" here would double the namespace. -->
+-    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
+-              command="load"/>
+-    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
+-              command="load"/>
++  <group if="$(arg use_move_base)">
++    <node name="move_base" pkg="move_base" type="move_base" output="screen"
++          launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
++      <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
++                command="load" ns="global_costmap"/>
++      <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
++                command="load" ns="local_costmap"/>
++      <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
++                command="load"/>
++      <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
++                command="load"/>
++      <!-- global_planner_params.yaml already has a GlobalPlanner root key;
++           adding ns="GlobalPlanner" here would double the namespace. -->
++      <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
++                command="load"/>
++      <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
++                command="load"/>
+ 
+-    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+-    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+-    <param name="controller_frequency" value="10.0"/>
+-    <param name="planner_frequency"    value="1.0"/>
+-    <param name="planner_patience"     value="5.0"/>
+-    <param name="controller_patience"  value="15.0"/>
+-    <param name="oscillation_timeout"  value="6.0"/>
+-    <param name="oscillation_distance" value="0.1"/>
+-    <param name="clearing_rotation_allowed" value="true"/>
+-    <param name="recovery_behavior_enabled" value="true"/>
+-  </node>
++      <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
++      <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
++      <param name="controller_frequency" value="10.0"/>
++      <param name="planner_frequency"    value="1.0"/>
++      <param name="planner_patience"     value="5.0"/>
++      <param name="controller_patience"  value="15.0"/>
++      <param name="oscillation_timeout"  value="6.0"/>
++      <param name="oscillation_distance" value="0.1"/>
++      <param name="clearing_rotation_allowed" value="true"/>
++      <param name="recovery_behavior_enabled" value="true"/>
++    </node>
++  </group>
+ 
+   <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
+         args="-d $(find aic26_navigation)/rviz/navigation.rviz"

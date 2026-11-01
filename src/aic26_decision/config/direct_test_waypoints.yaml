@@ -1,0 +1,28 @@
+# Straight-line verification route for direct_waypoint_controller.py.
+#
+# These points are a SUBSET of real_waypoints.yaml along the top corridor.
+# The controller drives straight lines between consecutive points, so before
+# the first run always check the route against the map:
+#
+#   roslaunch aic26_bringup direct.launch backend:=real check_only:=true
+#
+# If a segment is reported blocked, add an intermediate waypoint along the
+# free corridor instead of widening the tolerance. The yaw values below are
+# the direction of travel, not the inspection headings of real_waypoints.yaml.
+
+waypoints:
+  - name: "traffic_light_1"
+    x: 0.6
+    y: 1.60
+    yaw: 3.141592
+    dwell: 0.0
+  - name: "station_1"
+    x: -1.0
+    y: 1.63
+    yaw: 3.141592
+    dwell: 0.0
+  - name: "corner_2"
+    x: -1.7
+    y: 1.65
+    yaw: 3.141592
+    dwell: 0.0

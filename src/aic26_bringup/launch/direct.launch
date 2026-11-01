@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Direct point-to-point waypoint driving without move_base or TEB.
+
+       Starts the selected backend (hardware drivers or Gazebo), map_server +
+       AMCL (move_base is disabled), and the direct waypoint controller.
+       The controller checks the straight segments between waypoints against
+       the static map before driving, so start with a small verified subset
+       (direct_test_waypoints.yaml) instead of the full task route.
+
+       Examples:
+         roslaunch aic26_bringup direct.launch backend:=real \
+             names:="traffic_light_1" v_max:=0.10
+         roslaunch aic26_bringup direct.launch backend:=real check_only:=true
+  -->
+
+  <arg name="backend" default="real"/>
+  <arg name="sim" default="sim"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time" default=""/>
+  <arg name="show_view" default="false"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="node_delay" default="0.0"/>
+  <arg name="sim_map" default="$(find aic26_slam)/maps/world_sim.yaml"/>
+  <arg name="real_map" default="$(find aic26_slam)/maps/world.yaml"/>
+  <arg name="map_file"
+       default="$(eval arg('sim_map') if arg('backend') == 'sim' else arg('real_map'))"/>
+
+  <!-- AMCL initial pose (chassis odometry uses the same start pose). -->
+  <arg name="set_initial_pose" default="true"/>
+  <arg name="initial_pose_x" default="1.6"/>
+  <arg name="initial_pose_y" default="1.7"/>
+  <arg name="initial_pose_a" default="3.141592"/>
+  <arg name="laser_min_range"
+       default="$(eval '0.2' if arg('backend') == 'real' else '0.1')"/>
+  <arg name="laser_max_range"
+       default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
+
+  <!-- hardware backend -->
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <!-- The direct controller does not use the camera; keep it off to save CPU. -->
+  <arg name="camera" default="false"/>
+
+  <!-- direct controller -->
+  <arg name="waypoints_file"
+       default="$(find aic26_decision)/config/direct_test_waypoints.yaml"/>
+  <arg name="names" default=""/>
+  <arg name="start_at" default=""/>
+  <arg name="v_max" default="0.15"/>
+  <arg name="dry_run" default="false"/>
+  <arg name="check_only" default="false"/>
+  <arg name="require_backend"
+       default="$(eval 'sim' if arg('backend') == 'sim' else 'real')"/>
+
+  <include file="$(find aic26_bringup)/launch/backend.launch">
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="sim" value="$(arg sim)"/>
+    <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time" value="$(arg sky_time)"/>
+    <arg name="show_view" value="$(arg show_view)"/>
+    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+    <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="chassis_initial_x" value="$(arg initial_pose_x)"/>
+    <arg name="chassis_initial_y" value="$(arg initial_pose_y)"/>
+    <arg name="chassis_initial_yaw" value="$(arg initial_pose_a)"/>
+    <arg name="imu_port" value="$(arg imu_port)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="camera" value="$(arg camera)"/>
+    <arg name="camera_device" value="$(arg camera_device)"/>
+    <arg name="teleop" value="false"/>
+  </include>
+
+  <!-- map_server + AMCL only: no move_base, no TEB, no costmaps. -->
+  <include file="$(find aic26_navigation)/launch/navigation.launch">
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
+    <arg name="node_delay" value="$(arg node_delay)"/>
+    <arg name="use_move_base" value="false"/>
+    <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+    <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+    <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+    <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
+    <arg name="laser_min_range" value="$(arg laser_min_range)"/>
+    <arg name="laser_max_range" value="$(arg laser_max_range)"/>
+  </include>
+
+  <node name="direct_waypoint_controller" pkg="aic26_decision"
+        type="direct_waypoint_controller.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam file="$(find aic26_decision)/config/direct_controller.yaml"
+              command="load"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+    <param name="names" value="$(arg names)"/>
+    <param name="start_at" value="$(arg start_at)"/>
+    <param name="v_max" value="$(arg v_max)" type="double"/>
+    <param name="dry_run" value="$(arg dry_run)" type="bool"/>
+    <param name="check_only" value="$(arg check_only)" type="bool"/>
+    <param name="require_backend" value="$(arg require_backend)"/>
+  </node>
+
+</launch>

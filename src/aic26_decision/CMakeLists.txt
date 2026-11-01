@@ -25,6 +25,7 @@ catkin_install_python(PROGRAMS
   scripts/capture_cycle.py
   scripts/demo_cycle.py
   scripts/mission_controller.py
+  scripts/direct_waypoint_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
