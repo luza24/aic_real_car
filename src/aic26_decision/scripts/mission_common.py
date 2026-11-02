@@ -140,6 +140,7 @@ class RobotDriver(object):
             PoseWithCovarianceStamped, queue_size=1)
 
         self.turn_speed = rospy.get_param('~turn_speed', 0.8)
+        self.turn_min_speed = float(rospy.get_param('~turn_min_speed', 0.15))
         self.turn_tolerance = rospy.get_param('~turn_tolerance', 0.05)
         self.turn_timeout = rospy.get_param('~turn_timeout', 20.0)
         self.turn_rate = rospy.get_param('~turn_rate', 20.0)
@@ -775,12 +776,22 @@ class RobotDriver(object):
                               self.global_frame, self.base_frame)
                 self.stop_motion()
                 return False
-            if abs(wrap_angle(target - yaw)) < self.turn_tolerance:
+            error = wrap_angle(target - yaw)
+            if abs(error) < self.turn_tolerance:
                 self.stop_motion()
                 rospy.sleep(self.turn_settle)
                 rospy.loginfo("rotated to %.2f rad", target)
                 return True
-            cmd.angular.z = self.turn_speed * sign
+            # Follow the remaining error sign so an overshoot is corrected
+            # instead of rotating away from the target until the timeout.
+            if abs(abs(error) - math.pi) < 1e-3:
+                direction_sign = sign
+            else:
+                direction_sign = 1.0 if error >= 0.0 else -1.0
+            # Full speed for large errors, slow near the tolerance window.
+            cmd.angular.z = direction_sign * min(
+                self.turn_speed,
+                max(self.turn_min_speed, 3.0 * abs(error)))
             self.cmd_pub.publish(cmd)
             rate.sleep()
 

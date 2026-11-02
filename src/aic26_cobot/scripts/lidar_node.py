@@ -37,7 +37,7 @@ class LidarNode(object):
         self.fill_max_diff = abs(float(
             rospy.get_param('~fill_max_diff', 0.2)))
         self.min_coverage_deg = abs(float(
-            rospy.get_param('~min_coverage_deg', 200.0)))
+            rospy.get_param('~min_coverage_deg', 120.0)))
 
         self.angle_min = -math.pi
         self.angle_max = math.pi
@@ -46,6 +46,7 @@ class LidarNode(object):
         self.ranges = [float('inf')] * self.bins
         self.intensities = [0.0] * self.bins
         self.point_count = 0
+        self.received_count = 0
         self.last_start = None
         self.scan_start_time = rospy.Time.now()
         self._sweep_start = self.scan_start_time
@@ -126,6 +127,7 @@ class LidarNode(object):
             self._sweep_start = now
 
         self.last_start = start
+        self.received_count += len(points)
 
         for angle, distance, intensity in points:
             angle = (angle * self.angle_sign +
@@ -154,17 +156,20 @@ class LidarNode(object):
 
     def _publish_scan(self, stamp):
         if self.point_count == 0:
+            self.received_count = 0
             self.scan_start_time = rospy.Time.now()
             return
 
         valid = sum(1 for r in self.ranges if math.isfinite(r))
-        if valid * self.angle_increment < math.radians(self.min_coverage_deg):
+        received = self.received_count
+        if received * self.angle_increment < math.radians(self.min_coverage_deg):
             rospy.logwarn_throttle(
-                5.0, 'lidar: partial sweep, %d of %d bins, skipped',
-                valid, self.bins)
+                5.0, 'lidar: partial sweep, %d received / %d valid bins, skipped',
+                received, valid)
             self.ranges = [float('inf')] * self.bins
             self.intensities = [0.0] * self.bins
             self.point_count = 0
+            self.received_count = 0
             self.scan_start_time = rospy.Time.now()
             return
 
@@ -188,6 +193,7 @@ class LidarNode(object):
         self.ranges = [float('inf')] * self.bins
         self.intensities = [0.0] * self.bins
         self.point_count = 0
+        self.received_count = 0
         self.scan_start_time = rospy.Time.now()
 
     def _shutdown(self):

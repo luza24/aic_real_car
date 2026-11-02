@@ -12,14 +12,14 @@
   <arg name="laser_max_range" default="12.0"/>
   <arg name="footprint"
        default="[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]"/>
-  <arg name="initial_cov" default="0.0004"/>
-  <arg name="max_vel_x" default="0.24"/>
-  <arg name="max_vel_x_backwards" default="0.15"/>
-  <arg name="max_vel_y" default="0.14"/>
-  <arg name="max_vel_theta" default="0.60"/>
-  <arg name="acc_lim_x" default="0.6"/>
-  <arg name="acc_lim_y" default="0.6"/>
-  <arg name="acc_lim_theta" default="0.8"/>
+  <arg name="initial_cov" default="0.03"/>
+  <arg name="max_vel_x" default="0.30"/>
+  <arg name="max_vel_x_backwards" default="0.18"/>
+  <arg name="max_vel_y" default="0.16"/>
+  <arg name="max_vel_theta" default="0.70"/>
+  <arg name="acc_lim_x" default="0.8"/>
+  <arg name="acc_lim_y" default="0.8"/>
+  <arg name="acc_lim_theta" default="1.0"/>
   <arg name="disable_strafe" default="false"/>
   <arg name="weight_kinematics_nh" default="0.0"/>
   <arg name="teb_max_vel_y"
@@ -91,9 +91,9 @@
     <param name="planner_frequency"    value="1.0"/>
     <param name="planner_patience"     value="5.0"/>
     <param name="controller_patience"  value="15.0"/>
-    <param name="oscillation_timeout"  value="0.0"/>
+    <param name="oscillation_timeout"  value="20.0"/>
     <param name="oscillation_distance" value="0.05"/>
-    <param name="clearing_rotation_allowed" value="true"/>
+    <param name="clearing_rotation_allowed" value="false"/>
     <param name="recovery_behavior_enabled" value="true"/>
   </node>
 

@@ -20,5 +20,5 @@ mask_end_deg: -1.0
 # min_coverage_deg (a serial stall would otherwise publish a partial scan).
 fill_gaps: 2
 fill_max_diff: 0.2
-min_coverage_deg: 200.0
+min_coverage_deg: 120.0
 

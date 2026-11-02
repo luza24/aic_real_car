@@ -31,15 +31,15 @@
   <arg name="footprint"
        default="$(eval '[[-0.185, -0.0875], [-0.185, 0.0875], [-0.135, 0.1425], [0.135, 0.1425], [0.1575, 0.0875], [0.1575, -0.0875], [0.135, -0.1425], [-0.135, -0.1425]]' if arg('backend') == 'real' else '[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]')"/>
   <arg name="initial_cov"
-       default="$(eval '0.0004' if arg('backend') == 'real' else '0.01')"/>
-  <arg name="max_vel_x" default="0.24"/>
-  <arg name="max_vel_x_backwards" default="0.15"/>
-  <arg name="max_vel_y" default="0.14"/>
-  <arg name="max_vel_theta" default="0.60"/>
-  <arg name="acc_lim_x" default="0.6"/>
-  <arg name="acc_lim_y" default="0.6"/>
-  <arg name="acc_lim_theta" default="0.8"/>
-  <arg name="disable_strafe" default="false"/>
+       default="$(eval '0.03' if arg('backend') == 'real' else '0.01')"/>
+  <arg name="max_vel_x" default="0.30"/>
+  <arg name="max_vel_x_backwards" default="0.18"/>
+  <arg name="max_vel_y" default="0.16"/>
+  <arg name="max_vel_theta" default="0.70"/>
+  <arg name="acc_lim_x" default="0.8"/>
+  <arg name="acc_lim_y" default="0.8"/>
+  <arg name="acc_lim_theta" default="1.0"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="amcl_update_d" default="0.03"/>
   <arg name="amcl_update_a" default="0.15"/>
   <arg name="amcl_beams" default="90"/>

@@ -31,7 +31,7 @@
     <param name="results_dir"   value="$(arg results_dir)"/>
     <param name="detect_wait"   value="1.0"/>
     <param name="no_data_wait"  value="10.0"/>
-    <param name="nav_timeout"   value="0.0"/>
+    <param name="nav_timeout"   value="120.0"/>
 
     <param name="max_start_offset"    value="0.30"/>
     <param name="max_start_yaw"       value="0.20"/>
@@ -44,14 +44,15 @@
     <param name="start_align_yaw"     value="0.10"/>
     <param name="start_align_timeout" value="45.0"/>
     <param name="require_start_align" value="false"/>
-    <param name="nav_server_timeout" value="0.0"/>
+    <param name="nav_server_timeout" value="60.0"/>
     <param name="ready_timeout" value="60.0"/>
 
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
-    <param name="turn_settle"     value="0.5"/>
-    <param name="turn_speed"      value="0.5"/>
-    <param name="turn_tolerance"  value="0.05"/>
+    <param name="turn_settle"     value="0.4"/>
+    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_tolerance"  value="0.06"/>
+    <param name="turn_min_speed"   value="0.15"/>
     <param name="turn_timeout"    value="20.0"/>
   </node>
 
