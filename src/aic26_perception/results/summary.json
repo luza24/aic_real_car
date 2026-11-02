@@ -1,0 +1,16 @@
+{
+  "people": {
+    "target": "people",
+    "total": 0,
+    "community": 0,
+    "intruder": 0,
+    "intruders": [],
+    "boxes": {}
+  },
+  "car": {},
+  "traffic_light": {
+    "target": "traffic_light",
+    "model_name": "traffic_light",
+    "state": "UNKNOWN"
+  }
+}

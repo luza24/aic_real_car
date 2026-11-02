@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aic26_perception</name>
+  <version>0.0.0</version>
+  <description>ONNX detectors for traffic lights, people and license plates.</description>
+
+  <maintainer email="govis@todo.todo">govis</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>aic26_msgs</depend>
+  <depend>cv_bridge</depend>
+  <depend>image_transport</depend>
+  <depend>rospy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+
+  <!-- runtime python packages (pip install, not rosdep):
+         onnxruntime  - preferred ONNX backend for the int8 models
+         easyocr      - license plate reader used by car_detector -->
+
+  <export>
+
+  </export>
+</package>

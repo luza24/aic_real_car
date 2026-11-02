@@ -1,0 +1,20 @@
+port: /dev/imu
+# The WIT module stores baud/rate in its own registers. On 2026-10-28 it was
+# found back at the factory 9600 baud / 10 Hz (valid 55 51/52/53 frames at
+# 9600, only zeros at 115200), which is the reset described in HANDOVER 7.5.
+# Keep host and module in sync; change both this file and imu.launch together.
+baud: 9600
+
+topic: /imu/data
+mag_topic: /imu/mag
+frame_id: imu_link
+
+accel_range_g: 16.0
+gyro_range_dps: 2000.0
+
+yaw_sign: 1.0
+yaw_offset_deg: 0.0
+gyro_sign: 1.0
+
+publish_mag: false
+mag_scale: 1.0

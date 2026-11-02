@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="model_path"
+       default="$(find aic26_perception)/models/traffic_int8.onnx"/>
+  <arg name="light_name" default="traffic_light"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <node name="traffic_light_detector" pkg="aic26_perception"
+        type="traffic_light_detector.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="model_path" value="$(arg model_path)"/>
+    <param name="image_in"   value="/camera/image_raw"/>
+    <param name="state_topic" value="/perception/traffic_light"/>
+    <param name="image_topic" value="/perception/traffic_light/image"/>
+    <param name="detect_topic" value="/perception/detect"/>
+    <param name="input_size" value="640"/>
+    <param name="conf"       value="0.5"/>
+    <param name="nms"        value="0.45"/>
+    <param name="max_rate"   value="5.0"/>
+    <param name="node_name"  value="$(arg light_name)"/>
+  </node>
+
+</launch>

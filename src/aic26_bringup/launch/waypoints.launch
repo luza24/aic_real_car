@@ -1,0 +1,107 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="backend" default="sim"/>
+  <arg name="sim" default="sim"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time" default=""/>
+  <arg name="map_name"
+       default="$(eval 'world_real.yaml' if arg('backend') == 'real' else 'world_sim.yaml')"/>
+  <arg name="map_file" default="$(find aic26_slam)/maps/$(arg map_name)"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="show_view" default="true"/>
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera" default="true"/>
+  <arg name="teleop" default="false"/>
+  <arg name="set_initial_pose" default="true"/>
+  <arg name="initial_pose_x" default="1.6"/>
+  <arg name="initial_pose_y" default="1.7"/>
+  <arg name="initial_pose_a" default="3.141592"/>
+  <arg name="laser_min_range"
+       default="$(eval '0.2' if arg('backend') == 'real' else '0.1')"/>
+  <arg name="laser_max_range"
+       default="$(eval '4.0' if arg('backend') == 'real' else '12.0')"/>
+  <arg name="footprint"
+       default="$(eval '[[-0.185, -0.0875], [-0.185, 0.0875], [-0.135, 0.1425], [0.135, 0.1425], [0.1575, 0.0875], [0.1575, -0.0875], [0.135, -0.1425], [-0.135, -0.1425]]' if arg('backend') == 'real' else '[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]')"/>
+  <arg name="initial_cov"
+       default="$(eval '0.0004' if arg('backend') == 'real' else '0.01')"/>
+  <arg name="max_vel_x" default="0.24"/>
+  <arg name="max_vel_x_backwards" default="0.15"/>
+  <arg name="max_vel_y" default="0.14"/>
+  <arg name="max_vel_theta" default="0.60"/>
+  <arg name="acc_lim_x" default="0.6"/>
+  <arg name="acc_lim_y" default="0.6"/>
+  <arg name="acc_lim_theta" default="0.8"/>
+  <arg name="disable_strafe" default="false"/>
+  <arg name="amcl_update_d" default="0.03"/>
+  <arg name="amcl_update_a" default="0.15"/>
+  <arg name="amcl_beams" default="90"/>
+  <arg name="amcl_sigma_hit" default="0.18"/>
+  <arg name="amcl_z_hit" default="0.55"/>
+  <arg name="amcl_min_particles" default="500"/>
+  <arg name="amcl_max_particles" default="2000"/>
+  <arg name="virtual_walls_file"
+       default="$(find aic26_navigation)/config/virtual_walls.yaml"/>
+  <arg name="nav_delay" default="15.0"/>
+  <arg name="task_delay" default="20.0"/>
+
+  <include file="$(find aic26_bringup)/launch/backend.launch">
+    <arg name="disable_strafe" value="$(arg disable_strafe)"/>
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="sim" value="$(arg sim)"/>
+    <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time" value="$(arg sky_time)"/>
+    <arg name="show_view" value="$(arg show_view)"/>
+    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+    <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="chassis_initial_x" value="$(arg initial_pose_x)"/>
+    <arg name="chassis_initial_y" value="$(arg initial_pose_y)"/>
+    <arg name="chassis_initial_yaw" value="$(arg initial_pose_a)"/>
+    <arg name="imu_port" value="$(arg imu_port)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="camera_device" value="$(arg camera_device)"/>
+    <arg name="camera" value="$(arg camera)"/>
+    <arg name="teleop" value="$(arg teleop)"/>
+  </include>
+
+  <include file="$(find aic26_navigation)/launch/navigation.launch">
+    <arg name="amcl_update_d" value="$(arg amcl_update_d)"/>
+    <arg name="amcl_update_a" value="$(arg amcl_update_a)"/>
+    <arg name="amcl_beams" value="$(arg amcl_beams)"/>
+    <arg name="amcl_sigma_hit" value="$(arg amcl_sigma_hit)"/>
+    <arg name="amcl_z_hit" value="$(arg amcl_z_hit)"/>
+    <arg name="amcl_min_particles" value="$(arg amcl_min_particles)"/>
+    <arg name="amcl_max_particles" value="$(arg amcl_max_particles)"/>
+    <arg name="max_vel_x" value="$(arg max_vel_x)"/>
+    <arg name="max_vel_x_backwards" value="$(arg max_vel_x_backwards)"/>
+    <arg name="max_vel_y" value="$(arg max_vel_y)"/>
+    <arg name="max_vel_theta" value="$(arg max_vel_theta)"/>
+    <arg name="acc_lim_x" value="$(arg acc_lim_x)"/>
+    <arg name="acc_lim_y" value="$(arg acc_lim_y)"/>
+    <arg name="acc_lim_theta" value="$(arg acc_lim_theta)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
+    <arg name="node_delay" value="$(arg nav_delay)"/>
+    <arg name="set_initial_pose" value="$(arg set_initial_pose)"/>
+    <arg name="initial_pose_x" value="$(arg initial_pose_x)"/>
+    <arg name="initial_pose_y" value="$(arg initial_pose_y)"/>
+    <arg name="initial_pose_a" value="$(arg initial_pose_a)"/>
+    <arg name="laser_min_range" value="$(arg laser_min_range)"/>
+    <arg name="laser_max_range" value="$(arg laser_max_range)"/>
+    <arg name="footprint" value="$(arg footprint)"/>
+    <arg name="initial_cov" value="$(arg initial_cov)"/>
+    <arg name="virtual_walls_file" value="$(arg virtual_walls_file)"/>
+    <arg name="disable_strafe" value="$(arg disable_strafe)"/>
+  </include>
+
+  <include file="$(find aic26_decision)/launch/waypoints.launch">
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="disable_strafe" value="$(arg disable_strafe)"/>
+    <arg name="node_delay" value="$(arg task_delay)"/>
+  </include>
+
+</launch>

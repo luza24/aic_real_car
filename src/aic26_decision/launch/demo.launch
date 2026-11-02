@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <arg name="backend" default="sim"/>
+  <arg name="disable_strafe" default="false"/>
+  <arg name="config_prefix"
+       default="$(eval ('real' if arg('backend') == 'real' else 'sim') + ('_nostrafe' if arg('disable_strafe') else ''))"/>
+  <arg name="route_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_screenshot_cycle.yaml"/>
+  <arg name="waypoints_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
+  <arg name="sky_step"       default="4.5"/>
+  <arg name="node_delay"     default="0.0"/>
+  <arg name="turn_speed"     default="0.5"/>
+
+  <node pkg="aic26_decision" type="demo_cycle.py" name="demo_cycle"
+        output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="route_file"     value="$(arg route_file)"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+    <param name="speech_topic"   value="/speech"/>
+    <param name="result_topic"   value="/perception/result"/>
+    <param name="detect_topic"   value="/perception/detect"/>
+    <param name="light_topic"    value="/traffic_light/state"/>
+    <param name="sky_step"       value="$(arg sky_step)"/>
+
+    <param name="cmd_topic"       value="/cmd_vel"/>
+    <param name="turn_tf_timeout" value="3.0"/>
+    <param name="turn_settle"     value="0.5"/>
+    <param name="turn_speed"      value="$(arg turn_speed)"/>
+    <param name="turn_tolerance"  value="0.05"/>
+    <param name="turn_timeout"    value="20.0"/>
+    <param name="ready_timeout"      value="60.0"/>
+    <param name="nav_server_timeout" value="120.0"/>
+    <param name="nav_timeout"        value="60.0"/>
+
+    <param name="max_start_offset"    value="0.30"/>
+    <param name="max_start_yaw"       value="0.20"/>
+    <param name="max_start_sigma"     value="0.10"/>
+    <param name="max_runtime_sigma"   value="0.65"/>
+    <param name="max_odom_jump"       value="0.10"/>
+    <param name="max_odom_yaw_jump"   value="0.06"/>
+    <param name="odom_jump_hold"      value="true"/>
+    <param name="start_gate_timeout"  value="30.0"/>
+    <param name="start_align"         value="true"/>
+    <param name="start_waypoint"      value="start"/>
+    <param name="start_align_tolerance" value="0.08"/>
+    <param name="start_align_yaw"     value="0.10"/>
+    <param name="start_align_timeout" value="45.0"/>
+    <param name="require_start_align" value="false"/>
+  </node>
+
+</launch>

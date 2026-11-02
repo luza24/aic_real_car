@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aic26_description</name>
+  <version>0.0.0</version>
+  <description>URDF/xacro descriptions of the AIC26 robots: the Gazebo armbot
+  and the real cobot.</description>
+
+  <maintainer email="govis@todo.todo">govis</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>robot_state_publisher</build_depend>
+  <build_depend>urdf</build_depend>
+  <build_depend>xacro</build_depend>
+  <build_export_depend>robot_state_publisher</build_export_depend>
+  <build_export_depend>urdf</build_export_depend>
+  <build_export_depend>xacro</build_export_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>urdf</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <export>
+
+  </export>
+</package>

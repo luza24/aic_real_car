@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>aic26_navigation</name>
+  <version>0.0.0</version>
+  <description>AMCL localization and move_base configuration for the saved map.</description>
+
+  <maintainer email="govis@todo.todo">govis</maintainer>
+
+  <license>TODO</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>amcl</depend>
+  <depend>costmap_2d</depend>
+  <depend>geometry_msgs</depend>
+  <depend>global_planner</depend>
+  <depend>map_server</depend>
+  <depend>move_base</depend>
+  <depend>nav_msgs</depend>
+  <depend>rospy</depend>
+  <depend>teb_local_planner</depend>
+  <depend>visualization_msgs</depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>rospkg</exec_depend>
+
+  <export>
+
+  </export>
+</package>

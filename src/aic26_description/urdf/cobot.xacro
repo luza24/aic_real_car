@@ -1,0 +1,146 @@
+<?xml version="1.0"?>
+<robot name="aic26_cobot" xmlns:xacro="http://wiki.ros.org/xacro">
+  <xacro:property name="cm" value="0.01"/>
+
+  <xacro:property name="wheel_radius" value="${3.5 * cm}"/>
+  <xacro:property name="wheel_length" value="${3.5 * cm}"/>
+  <xacro:property name="wheel_x" value="${10.0 * cm}"/>
+  <xacro:property name="wheel_y" value="${12.5 * cm}"/>
+
+  <xacro:property name="base_link_z" value="${wheel_radius}"/>
+  <xacro:property name="footprint_z" value="${5.25 * cm - base_link_z}"/>
+  <xacro:property name="case_z" value="${10.5 * cm - base_link_z}"/>
+  <xacro:property name="laser_x" value="${8.0 * cm}"/>
+  <xacro:property name="laser_z" value="${15.75 * cm - base_link_z}"/>
+  <xacro:property name="camera_mount_z" value="${19.0 * cm - base_link_z}"/>
+  <xacro:property name="camera_x" value="${2.0 * cm}"/>
+  <xacro:property name="camera_z" value="${20.25 * cm - 19.0 * cm}"/>
+
+  <material name="body_grey">
+    <color rgba="0.55 0.55 0.55 1.0"/>
+  </material>
+  <material name="case_grey">
+    <color rgba="0.30 0.30 0.30 1.0"/>
+  </material>
+  <material name="wheel_black">
+    <color rgba="0.05 0.05 0.05 1.0"/>
+  </material>
+  <material name="sensor_black">
+    <color rgba="0.10 0.10 0.10 1.0"/>
+  </material>
+
+  <xacro:macro name="box_part" params="name parent l w h xyz material">
+    <link name="${name}">
+      <visual>
+        <geometry>
+          <box size="${l} ${w} ${h}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="${l} ${w} ${h}"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:macro name="cylinder_part" params="name parent r l xyz rpy material">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="${rpy}"/>
+        <geometry>
+          <cylinder radius="${r}" length="${l}"/>
+        </geometry>
+        <material name="${material}"/>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="${rpy}"/>
+        <geometry>
+          <cylinder radius="${r}" length="${l}"/>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="${name}"/>
+      <origin xyz="${xyz}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 ${footprint_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${31.5 * cm} ${17.5 * cm} ${3.5 * cm}"/>
+      </geometry>
+      <material name="body_grey"/>
+    </visual>
+    <collision>
+      <origin xyz="0 0 ${footprint_z}" rpy="0 0 0"/>
+      <geometry>
+        <box size="${31.5 * cm} ${17.5 * cm} ${3.5 * cm}"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="base_link_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${base_link_z}" rpy="0 0 0"/>
+  </joint>
+
+  <xacro:property name="wheel_rpy" value="1.570796 0 0"/>
+  <xacro:cylinder_part name="front_left_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${wheel_x} ${wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="front_right_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${wheel_x} ${-wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="back_left_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${-wheel_x} ${wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+  <xacro:cylinder_part name="back_right_wheel" parent="base_link"
+                       r="${wheel_radius}" l="${wheel_length}"
+                       xyz="${-wheel_x} ${-wheel_y} 0" rpy="${wheel_rpy}"
+                       material="wheel_black"/>
+
+  <xacro:box_part name="case" parent="base_link"
+                  l="${26.0 * cm}" w="${17.5 * cm}" h="${7.0 * cm}"
+                  xyz="${-5.5 * cm} 0 ${case_z}" material="case_grey"/>
+
+  <xacro:cylinder_part name="laser" parent="base_link"
+                       r="${2.5 * cm}" l="${3.5 * cm}"
+                       xyz="${laser_x} 0 ${laser_z}" rpy="0 0 0"
+                       material="sensor_black"/>
+
+  <xacro:box_part name="camera_mount" parent="base_link"
+                  l="${2.0 * cm}" w="${3.5 * cm}" h="${10.0 * cm}"
+                  xyz="0 0 ${camera_mount_z}" material="body_grey"/>
+
+  <xacro:box_part name="camera" parent="camera_mount"
+                  l="${2.5 * cm}" w="${9.0 * cm}" h="${2.5 * cm}"
+                  xyz="${camera_x} 0 ${camera_z}" material="sensor_black"/>
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="-1.57079632679 0 -1.57079632679"/>
+  </joint>
+
+  <link name="imu_link"/>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="${-5.5 * cm} 0 ${case_z}" rpy="0 0 0"/>
+  </joint>
+</robot>

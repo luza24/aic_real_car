@@ -1,0 +1,24 @@
+port: /dev/lslidar
+baud: 460800
+
+topic: /scan
+frame_id: laser
+
+bins: 540
+min_range: 0.2
+max_range: 6.0
+scan_rate: 10.0
+
+angle_offset_deg: 2.29
+angle_sign: -1
+
+mask_start_deg: -1.0
+mask_end_deg: -1.0
+
+# Fill holes up to fill_gaps bins wide when the two neighbouring returns agree
+# within fill_max_diff, and drop a sweep that covers less than
+# min_coverage_deg (a serial stall would otherwise publish a partial scan).
+fill_gaps: 2
+fill_max_diff: 0.2
+min_coverage_deg: 200.0
+

@@ -1,0 +1,75 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="backend" default="sim"/>
+
+  <arg name="sim" default="sim"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time" default=""/>
+  <arg name="show_view" default="true"/>
+
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="chassis_initial_x" default="1.6"/>
+  <arg name="chassis_initial_y" default="1.7"/>
+  <arg name="chassis_initial_yaw" default="3.141592"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera" default="true"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera_width" default="1280"/>
+  <arg name="camera_height" default="720"/>
+  <arg name="camera_fps" default="30"/>
+  <arg name="camera_view_width" default="640"/>
+  <arg name="camera_view_height" default="360"/>
+  <arg name="teleop" default="false"/>
+  <arg name="cleanup" default="true"/>
+  <arg name="cleanup_kill_cpu" default="0"/>
+  <arg name="hardware_delay" default="2.0"/>
+  <arg name="camera_transport" default="compressed"/>
+  <arg name="disable_strafe" default="false"/>
+
+  <group if="$(eval arg('backend') == 'sim')">
+    <include file="$(find aic26_gazebo)/launch/$(arg sim).launch">
+      <arg name="day_night" value="$(arg day_night)"/>
+      <arg name="sky_time" value="$(arg sky_time)"/>
+      <arg name="show_view" value="$(arg show_view)"/>
+      <arg name="start_x" value="$(arg chassis_initial_x)"/>
+      <arg name="start_y" value="$(arg chassis_initial_y)"/>
+      <arg name="start_yaw" value="$(arg chassis_initial_yaw)"/>
+    </include>
+  </group>
+
+  <group if="$(eval arg('backend') == 'real')">
+    <node if="$(arg cleanup)" name="cleanup_leftovers" pkg="aic26_utils"
+          type="cleanup_leftovers.py" output="screen"
+          args="$(eval ('--kill-cpu ' + str(arg('cleanup_kill_cpu'))) if float(arg('cleanup_kill_cpu')) > 0 else '')"/>
+    <include file="$(find aic26_cobot)/launch/hardware.launch">
+      <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+      <arg name="chassis_port" value="$(arg chassis_port)"/>
+      <arg name="initial_x" value="$(arg chassis_initial_x)"/>
+      <arg name="initial_y" value="$(arg chassis_initial_y)"/>
+      <arg name="initial_yaw" value="$(arg chassis_initial_yaw)"/>
+      <arg name="imu_port" value="$(arg imu_port)"/>
+      <arg name="lidar_port" value="$(arg lidar_port)"/>
+      <arg name="camera_device" value="$(arg camera_device)"/>
+      <arg name="camera" value="$(arg camera)"/>
+      <arg name="camera_width" value="$(arg camera_width)"/>
+      <arg name="camera_height" value="$(arg camera_height)"/>
+      <arg name="camera_fps" value="$(arg camera_fps)"/>
+      <arg name="camera_view_width" value="$(arg camera_view_width)"/>
+      <arg name="camera_view_height" value="$(arg camera_view_height)"/>
+      <arg name="teleop" value="$(arg teleop)"/>
+      <arg name="node_delay" value="$(arg hardware_delay)"/>
+      <arg name="disable_strafe" value="$(arg disable_strafe)"/>
+    </include>
+    <include if="$(arg show_view)"
+             file="$(find aic26_utils)/launch/camera_view.launch">
+      <arg name="image" value="/camera/image_raw"/>
+      <arg name="transport" value="$(arg camera_transport)"/>
+      <arg name="width" value="$(arg camera_view_width)"/>
+      <arg name="height" value="$(arg camera_view_height)"/>
+    </include>
+  </group>
+
+</launch>

@@ -1,0 +1,30 @@
+device: /dev/video0
+autodetect: true
+
+width: 1280
+height: 720
+fps: 30
+fourcc: MJPG
+
+view_width: 640
+view_height: 360
+view_fps: 10
+view_quality: 30
+
+idle_timeout: 1.0
+always_on: false
+
+frame_id: camera
+image_topic: /camera/image_raw
+camera_info_topic: /camera/camera_info
+compressed_topic: /camera/image_raw/compressed
+active_topic: /camera/active
+
+hfov: 1.57079632679
+fx: 0.0
+fy: 0.0
+cx: 0.0
+cy: 0.0
+
+flip_horizontal: false
+flip_vertical: false
