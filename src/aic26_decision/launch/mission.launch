@@ -35,7 +35,7 @@
 
     <param name="max_start_offset"    value="0.30"/>
     <param name="max_start_yaw"       value="0.20"/>
-    <param name="max_start_sigma"     value="0.10"/>
+    <param name="max_start_sigma"     value="0.20"/>
     <param name="max_runtime_sigma"   value="0.65"/>
     <param name="start_gate_timeout"  value="30.0"/>
     <param name="start_align"         value="true"/>
