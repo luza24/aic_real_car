@@ -27,7 +27,7 @@
   <arg name="cleanup_kill_cpu" default="0"/>
   <arg name="hardware_delay" default="2.0"/>
   <arg name="camera_transport" default="compressed"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
 
   <group if="$(eval arg('backend') == 'sim')">
     <include file="$(find aic26_gazebo)/launch/$(arg sim).launch">

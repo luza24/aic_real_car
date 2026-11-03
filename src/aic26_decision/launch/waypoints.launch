@@ -3,7 +3,7 @@
 
 
   <arg name="backend" default="sim"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="config_prefix"
        default="$(eval ('real' if arg('backend') == 'real' else 'sim') + ('_nostrafe' if arg('disable_strafe') else ''))"/>
   <arg name="waypoints_file"

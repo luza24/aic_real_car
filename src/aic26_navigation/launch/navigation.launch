@@ -20,7 +20,7 @@
   <arg name="acc_lim_x" default="1.0"/>
   <arg name="acc_lim_y" default="1.0"/>
   <arg name="acc_lim_theta" default="1.2"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="weight_kinematics_nh" default="0.0"/>
   <arg name="teb_max_vel_y"
        default="$(eval 0.0 if arg('disable_strafe') else arg('max_vel_y'))"/>

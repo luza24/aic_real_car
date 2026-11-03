@@ -3,14 +3,14 @@
 
 
   <arg name="backend" default="sim"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="config_prefix"
        default="$(eval ('real' if arg('backend') == 'real' else 'sim') + ('_nostrafe' if arg('disable_strafe') else ''))"/>
   <arg name="tasks_file"
        default="$(find aic26_decision)/config/$(arg config_prefix)_tasks.yaml"/>
   <arg name="waypoints_file"
        default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
-  <arg name="gui"            default="true"/>
+  <arg name="gui"            default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="results_dir"    default="$(find aic26_perception)/results"/>
   <arg name="light_fallback" default=""/>
   <arg name="node_delay"     default="0.0"/>

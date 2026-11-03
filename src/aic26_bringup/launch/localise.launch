@@ -28,10 +28,10 @@
   <arg name="footprint"
        default="$(eval '[[-0.185, -0.0875], [-0.185, 0.0875], [-0.135, 0.1425], [0.135, 0.1425], [0.1575, 0.0875], [0.1575, -0.0875], [0.135, -0.1425], [-0.135, -0.1425]]' if arg('backend') == 'real' else '[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]')"/>
   <arg name="initial_cov"
-       default="$(eval '0.03' if arg('backend') == 'real' else '0.01')"/>
+       default="$(eval '0.03' if arg('backend') == 'real' else '0.03')"/>
   <arg name="auto_align" default="true"/>
   <arg name="max_scan_residual" default="0.18"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="virtual_walls_file"
        default="$(find aic26_navigation)/config/virtual_walls.yaml"/>
   <arg name="nav_delay" default="15.0"/>

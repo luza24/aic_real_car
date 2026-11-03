@@ -3,7 +3,9 @@
 
   <arg name="day_night" default="day"/>
   <arg name="sky_time"  default=""/>
-  <arg name="show_view" default="true"/>
+  <arg name="show_view" default="false"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="view_gui" default="false"/>
   <arg name="view_width" default="640"/>
   <arg name="view_height" default="360"/>
   <arg name="day_night_gui_delay" default="12.0"/>
@@ -20,7 +22,7 @@
     <arg name="world_name"   value="$(find aic26_gazebo)/worlds/community.world"/>
     <arg name="use_sim_time" value="true"/>
     <arg name="paused"       value="false"/>
-    <arg name="gui"          value="$(arg show_view)"/>
+    <arg name="gui"          value="$(arg gazebo_gui)"/>
     <arg name="headless"     value="false"/>
     <arg name="debug"        value="false"/>
     <arg name="verbose"      value="true"/>
@@ -57,11 +59,11 @@
 
   <node pkg="aic26_gazebo" type="day_night.py" name="day_night_gui" output="screen"
         launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
-    <param name="gui" value="$(arg show_view)"/>
+    <param name="gui" value="$(arg view_gui)"/>
     <param name="mode" value="$(arg day_night)"/>
   </node>
 
-  <include if="$(arg show_view)"
+  <include if="$(arg view_gui)"
            file="$(find aic26_utils)/launch/camera_view.launch">
     <arg name="image" value="/camera/image_raw"/>
     <arg name="width" value="$(arg view_width)"/>

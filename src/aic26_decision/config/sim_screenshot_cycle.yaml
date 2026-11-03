@@ -26,94 +26,82 @@
 #
 # The capture loop stops when all "shots" targets are met or on Ctrl-C.
 # Existing files are never overwritten, so the run is resumable.
-
+# Synced from real_screenshot_cycle.yaml on 2026-11-03; Gazebo model positions were NOT moved.
 waypoints:
-  - name: "corner_1"
-    label: "010_leave_start"
-    shots: 20
-    shots_per_pass: 1
-
-  - name: "traffic_light_1"
-    label: "020_light_1"
-    light: "traffic_light_1"
-    wait: 40
-    shots: 60
-    shots_per_pass: 3
-
-  - name: "station_1"
-    label: "030_people_b"
-    turn: "left"
-    dwell: 2.0
-    shots: 100
-    shots_per_pass: 5
-    result: '{"target": "people", "total": 8, "intruder": 0}'
-
-  - name: "station_2"
-    label: "040_people_a"
-    turn: "left"
-    dwell: 2.0
-    shots: 100
-    shots_per_pass: 5
-    result: '{"target": "people", "total": 4, "intruder": 0}'
-
-  - name: "station_3"
-    label: "050_people_f"
-    turn: "left"
-    dwell: 2.0
-    shots: 100
-    shots_per_pass: 5
-    result: '{"target": "people", "total": 2, "intruder": 2}'
-
-  - name: "station_3"
-    label: "060_people_c"
-    turn: "right"
-    dwell: 2.0
-    shots: 100
-    shots_per_pass: 5
-    result: '{"target": "people", "total": 4, "intruder": 0}'
-
-  - name: "traffic_light_2"
-    label: "070_people_d"
-    turn: "right"
-    dwell: 2.0
-    shots: 100
-    shots_per_pass: 5
-    result: '{"target": "people", "total": 4, "intruder": 0}'
-
-  - name: "traffic_light_2"
-    label: "080_light_2"
-    light: "traffic_light_2"
-    wait: 40
-    shots: 60
-    shots_per_pass: 3
-
-  - name: "car_1"
-    label: "090_car_1"
-    dwell: 2.0
-    shots: 40
-    shots_per_pass: 2
-    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
-
-  - name: "car_2"
-    label: "091_car_2"
-    dwell: 2.0
-    shots: 40
-    shots_per_pass: 2
-    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "鄂D·7B5Q2", "plate_conf": 0.95}'
-
-  - name: "car_3"
-    label: "092_car_3"
-    dwell: 2.0
-    shots: 40
-    shots_per_pass: 2
-    result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·PL12A", "plate_conf": 0.95}'
-
-  - name: "corner_1"
-    label: "100_return_back"
-    shots: 20
-    shots_per_pass: 1
-
-  - name: "start"
-    label: "101_return_home"
-    shots: 20
-    shots_per_pass: 1
+- name: corner_1
+  label: 010_leave_start
+  shots: 20
+  shots_per_pass: 1
+- name: traffic_light_1
+  label: 020_light_1
+  light: traffic_light_1
+  wait: 40
+  shots: 60
+  shots_per_pass: 3
+- name: station_1
+  label: 030_people_b
+  turn: left
+  dwell: 2.0
+  shots: 100
+  shots_per_pass: 5
+  result: '{"target": "people", "total": 8, "intruder": 0}'
+- name: station_2
+  label: 040_people_a
+  turn: left
+  dwell: 2.0
+  shots: 100
+  shots_per_pass: 5
+  result: '{"target": "people", "total": 4, "intruder": 0}'
+- name: station_3
+  label: 050_people_f
+  turn: left
+  dwell: 2.0
+  shots: 100
+  shots_per_pass: 5
+  result: '{"target": "people", "total": 2, "intruder": 2}'
+- name: station_3
+  label: 060_people_c
+  turn: right
+  dwell: 2.0
+  shots: 100
+  shots_per_pass: 5
+  result: '{"target": "people", "total": 4, "intruder": 0}'
+- name: traffic_light_2
+  label: 070_people_d
+  turn: right
+  dwell: 2.0
+  shots: 100
+  shots_per_pass: 5
+  result: '{"target": "people", "total": 4, "intruder": 0}'
+- name: traffic_light_2
+  label: 080_light_2
+  light: traffic_light_2
+  wait: 40
+  shots: 60
+  shots_per_pass: 3
+- name: car_1
+  label: 090_car_1
+  dwell: 2.0
+  shots: 40
+  shots_per_pass: 2
+  result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·B8Q62", "plate_conf": 0.95}'
+- name: car_2
+  label: 091_car_2
+  dwell: 2.0
+  shots: 40
+  shots_per_pass: 2
+  result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "鄂D·7B5Q2", "plate_conf": 0.95}'
+- name: car_3
+  label: 092_car_3
+  dwell: 2.0
+  shots: 40
+  shots_per_pass: 2
+  result: '{"target": "car", "total": 1, "cars": ["car"], "plate": "苏A·PL12A", "plate_conf": 0.95}'
+- name: corner_1
+  label: 100_return_back
+  shots: 20
+  shots_per_pass: 1
+- name: start
+  label: 101_return_home
+  shots: 20
+  shots_per_pass: 1

@@ -17,7 +17,7 @@
   <arg name="camera_device" default="/dev/video0"/>
   <arg name="camera" default="true"/>
   <arg name="teleop" default="false"/>
-  <arg name="gui" default="true"/>
+  <arg name="gui" default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="light_fallback"
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
   <arg name="set_initial_pose" default="true"/>
@@ -31,7 +31,7 @@
   <arg name="footprint"
        default="$(eval '[[-0.185, -0.0875], [-0.185, 0.0875], [-0.135, 0.1425], [0.135, 0.1425], [0.1575, 0.0875], [0.1575, -0.0875], [0.135, -0.1425], [-0.135, -0.1425]]' if arg('backend') == 'real' else '[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]')"/>
   <arg name="initial_cov"
-       default="$(eval '0.03' if arg('backend') == 'real' else '0.01')"/>
+       default="$(eval '0.03' if arg('backend') == 'real' else '0.03')"/>
   <arg name="max_vel_x" default="0.36"/>
   <arg name="max_vel_x_backwards" default="0.22"/>
   <arg name="max_vel_y" default="0.18"/>

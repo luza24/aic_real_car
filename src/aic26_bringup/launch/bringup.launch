@@ -27,8 +27,8 @@
   <arg name="lidar_port" default="/dev/lslidar"/>
   <arg name="camera_device" default="/dev/video0"/>
   <arg name="teleop" default="false"/>
-  <arg name="disable_strafe" default="false"/>
-  <arg name="gui" default="true"/>
+  <arg name="disable_strafe" default="true"/>
+  <arg name="gui" default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="light_fallback"
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
 

@@ -36,7 +36,7 @@
   <arg name="acc_lim_x" default="0.6"/>
   <arg name="acc_lim_y" default="0.6"/>
   <arg name="acc_lim_theta" default="0.8"/>
-  <arg name="disable_strafe" default="false"/>
+  <arg name="disable_strafe" default="true"/>
   <arg name="amcl_update_d" default="0.03"/>
   <arg name="amcl_update_a" default="0.15"/>
   <arg name="amcl_beams" default="90"/>
