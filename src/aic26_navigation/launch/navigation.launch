@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="map_file" default="$(find aic26_slam)/maps/world_real.yaml"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="node_delay" default="0.0"/>
+  <arg name="set_initial_pose" default="true"/>
+  <arg name="initial_pose_x" default="1.6"/>
+  <arg name="initial_pose_y" default="1.7"/>
+  <arg name="initial_pose_a" default="3.141592"/>
+  <arg name="laser_min_range" default="0.1"/>
+  <arg name="laser_max_range" default="12.0"/>
+  <arg name="footprint"
+       default="[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]"/>
+  <arg name="initial_cov" default="0.03"/>
+  <arg name="max_vel_x" default="0.45"/>
+  <arg name="max_vel_x_backwards" default="0.26"/>
+  <arg name="max_vel_y" default="0.18"/>
+  <arg name="max_vel_theta" default="1.0"/>
+  <arg name="acc_lim_x" default="1.0"/>
+  <arg name="acc_lim_y" default="1.0"/>
+  <arg name="acc_lim_theta" default="1.2"/>
+  <arg name="disable_strafe" default="true"/>
+  <arg name="weight_kinematics_nh" default="0.0"/>
+  <arg name="teb_max_vel_y"
+       default="$(eval 0.0 if arg('disable_strafe') else arg('max_vel_y'))"/>
+  <arg name="teb_acc_lim_y"
+       default="$(eval 0.0 if arg('disable_strafe') else arg('acc_lim_y'))"/>
+  <arg name="teb_weight_kinematics_nh"
+       default="$(eval 1000.0 if arg('disable_strafe') else arg('weight_kinematics_nh'))"/>
+  <arg name="amcl_update_d" default="0.03"/>
+  <arg name="amcl_update_a" default="0.15"/>
+  <arg name="amcl_beams" default="90"/>
+  <arg name="amcl_sigma_hit" default="0.18"/>
+  <arg name="amcl_z_hit" default="0.55"/>
+  <arg name="amcl_min_particles" default="500"/>
+  <arg name="amcl_max_particles" default="2000"/>
+  <arg name="auto_align" default="false"/>
+  <arg name="max_scan_residual" default="0.18"/>
+  <arg name="virtual_walls_file"
+       default="$(find aic26_navigation)/config/virtual_walls.yaml"/>
+
+  <node name="map_server" pkg="map_server" type="map_server" args="$(arg map_file)"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
+
+  <node name="virtual_walls" pkg="aic26_navigation" type="virtual_walls.py"
+        output="screen" launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="config" value="$(arg virtual_walls_file)"/>
+    <param name="topic" value="/virtual_walls"/>
+    <param name="marker_topic" value="/virtual_walls_markers"/>
+    <param name="republish_period" value="1.0" type="double"/>
+  </node>
+
+  <node name="localisation_check" pkg="aic26_navigation"
+        type="localisation_check.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="auto_align" value="$(arg auto_align)"/>
+    <param name="max_residual" value="$(arg max_scan_residual)"/>
+  </node>
+
+  <node name="amcl" pkg="amcl" type="amcl" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam file="$(find aic26_navigation)/config/amcl_params.yaml"
+              command="load" subst_value="true"/>
+    <param name="set_initial_pose" value="$(arg set_initial_pose)" type="bool"/>
+    <param name="initial_pose_x" value="$(arg initial_pose_x)" type="double"/>
+    <param name="initial_pose_y" value="$(arg initial_pose_y)" type="double"/>
+    <param name="initial_pose_a" value="$(arg initial_pose_a)" type="double"/>
+    <param name="laser_min_range" value="$(arg laser_min_range)" type="double"/>
+    <param name="laser_max_range" value="$(arg laser_max_range)" type="double"/>
+  </node>
+
+  <node name="move_base" pkg="move_base" type="move_base" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+              command="load" ns="global_costmap" subst_value="true"/>
+    <rosparam file="$(find aic26_navigation)/config/costmap_common_params.yaml"
+              command="load" ns="local_costmap" subst_value="true"/>
+    <rosparam file="$(find aic26_navigation)/config/global_costmap_params.yaml"
+              command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/local_costmap_params.yaml"
+              command="load"/>
+    <rosparam file="$(find aic26_navigation)/config/global_planner_params.yaml"
+              command="load" ns="GlobalPlanner"/>
+    <rosparam file="$(find aic26_navigation)/config/local_planner_params.yaml"
+              command="load" subst_value="true"/>
+
+    <param name="base_global_planner" value="global_planner/GlobalPlanner"/>
+    <param name="base_local_planner" value="teb_local_planner/TebLocalPlannerROS"/>
+    <param name="controller_frequency" value="10.0"/>
+    <param name="planner_frequency"    value="1.0"/>
+    <param name="planner_patience"     value="5.0"/>
+    <param name="controller_patience"  value="15.0"/>
+    <param name="oscillation_timeout"  value="20.0"/>
+    <param name="oscillation_distance" value="0.05"/>
+    <param name="clearing_rotation_allowed" value="false"/>
+    <param name="recovery_behavior_enabled" value="true"/>
+  </node>
+
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find aic26_navigation)/rviz/navigation.rviz"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
+
+</launch>

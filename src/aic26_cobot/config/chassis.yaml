@@ -1,0 +1,52 @@
+port: /dev/carserial
+baud: 115200
+
+cmd_topic: /cmd_vel
+vel_topic: /vel_raw
+odom_topic: /odom
+
+odom_frame: odom
+base_frame: base_footprint
+publish_tf: true
+
+initial_x: 1.6
+initial_y: 1.7
+initial_yaw: 3.141592
+
+publish_rate: 30.0
+feedback_rate: 20.0
+feedback_dt_max: 0.2
+
+linear_deadband: 0.002
+angular_deadband: 0.002
+
+cmd_timeout: 0.5
+
+feedback_timeout: 1.0
+
+byte_delay: 0.0
+
+linear_cmd_scale: 1.0
+angular_cmd_scale: 1.0
+linear_odom_scale: 1.0
+angular_odom_scale: 1.0
+# Mecanum strafe. Measured 2026-10-29 by strafing 0.37 m against the north wall
+# and comparing the wall range with odom: d(wall)/d(odom_y) = 0.969 / 0.940 in
+# the two directions (slope of the middle of each run, ramps excluded), i.e. the
+# odometry over-reports lateral travel by ~5 %. A global map->odom fit cannot
+# measure this (along the car row y is unobservable), which is why the earlier
+# 1.07 guess was wrong and got reverted.
+lateral_cmd_scale: 1.0
+lateral_odom_scale: 1.0
+max_linear: 0.5
+max_angular: 1.5
+
+use_imu_yaw: true
+imu_topic: /imu/data
+imu_timeout: 0.2
+imu_gyro_gain: 0.8
+imu_gyro_sign: 1.0
+imu_gyro_bias_alpha: 0.02
+imu_gyro_bias_limit: 0.15
+# while strafing the gyro is unusable (see chassis_node): fall back to wheels
+imu_strafe_gate: 0.02

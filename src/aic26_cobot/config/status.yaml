@@ -1,0 +1,8 @@
+timeout: 2.0
+hardware_id: aic26_cobot
+
+vel_topic: /vel_raw
+imu_topic: /imu/data
+scan_topic: /scan
+camera_topic: /camera/active
+odom_topic: /odom

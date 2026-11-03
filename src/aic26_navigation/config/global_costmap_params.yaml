@@ -1,0 +1,16 @@
+global_costmap:
+  global_frame: map
+  robot_base_frame: base_footprint
+  update_frequency: 5.0
+  publish_frequency: 1.0
+  rolling_window: false
+  transform_tolerance: 0.3
+  resolution: 0.05
+  track_unknown_space: false
+  plugins:
+    - {name: static_layer, type: "costmap_2d::StaticLayer"}
+    - {name: virtual_walls, type: "costmap_2d::StaticLayer"}
+    - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+  inflation_layer:
+    inflation_radius: 0.26
+    cost_scaling_factor: 3.5

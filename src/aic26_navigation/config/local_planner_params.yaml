@@ -1,0 +1,49 @@
+TebLocalPlannerROS:
+
+  max_vel_x: $(arg max_vel_x)
+  max_vel_x_backwards: $(arg max_vel_x_backwards)
+  max_vel_y: $(arg teb_max_vel_y)
+  max_vel_theta: $(arg max_vel_theta)
+  acc_lim_x: $(arg acc_lim_x)
+  acc_lim_y: $(arg teb_acc_lim_y)
+  acc_lim_theta: $(arg acc_lim_theta)
+
+  footprint_model:
+    type: "polygon"
+    vertices: $(arg footprint)
+
+  xy_goal_tolerance: 0.08
+  yaw_goal_tolerance: 0.12
+  free_goal_vel: false
+
+  weight_kinematics_nh: $(arg teb_weight_kinematics_nh)
+  weight_kinematics_forward_drive: 0.0
+
+  dt_ref: 0.3
+  dt_hysteresis: 0.1
+  min_samples: 3
+  max_samples: 200
+
+  global_plan_viapoint_sep: 0.3
+  via_points_ordered: false
+  weight_viapoint: 50.0
+  weight_shortest_path: 1.0
+
+  min_obstacle_dist: 0.08
+  inflation_dist: 0.16
+  weight_obstacle: 25.0
+  weight_inflation: 3.5
+  include_costmap_obstacles: true
+  costmap_obstacles_behind_robot_dist: 0.5
+
+  weight_optimaltime: 2.0
+  no_inner_iterations: 6
+  no_outer_iterations: 4
+
+  oscillation_recovery: false
+
+  global_plan_overwrite_orientation: true
+  allow_init_with_backwards_motion: true
+  max_global_plan_lookahead_dist: 0.8
+  feasibility_check_no_poses: 0
+  publish_feedback: false

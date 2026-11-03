@@ -1,0 +1,59 @@
+<?xml version="1.0"?>
+<launch>
+
+
+  <arg name="backend" default="sim"/>
+  <arg name="disable_strafe" default="true"/>
+  <arg name="config_prefix"
+       default="$(eval ('real' if arg('backend') == 'real' else 'sim') + ('_nostrafe' if arg('disable_strafe') else ''))"/>
+  <arg name="tasks_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_tasks.yaml"/>
+  <arg name="waypoints_file"
+       default="$(find aic26_decision)/config/$(arg config_prefix)_waypoints.yaml"/>
+  <arg name="gui"            default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
+  <arg name="results_dir"    default="$(find aic26_perception)/results"/>
+  <arg name="light_fallback" default=""/>
+  <arg name="node_delay"     default="0.0"/>
+
+  <node name="mission_controller" pkg="aic26_decision"
+        type="mission_controller.py" output="screen"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'">
+    <param name="tasks_file"     value="$(arg tasks_file)"/>
+    <param name="waypoints_file" value="$(arg waypoints_file)"/>
+
+    <param name="vision_topic"  value="/perception/traffic_light"/>
+    <param name="truth_topic"   value="/traffic_light/state"/>
+    <param name="light_fallback" value="$(arg light_fallback)"/>
+    <param name="result_topic"  value="/perception/result"/>
+    <param name="detect_topic"  value="/perception/detect"/>
+    <param name="speech_topic"  value="/speech"/>
+    <param name="gui"           value="$(arg gui)"/>
+    <param name="results_dir"   value="$(arg results_dir)"/>
+    <param name="detect_wait"   value="1.0"/>
+    <param name="no_data_wait"  value="10.0"/>
+    <param name="nav_timeout"   value="120.0"/>
+
+    <param name="max_start_offset"    value="0.30"/>
+    <param name="max_start_yaw"       value="0.20"/>
+    <param name="max_start_sigma"     value="0.20"/>
+    <param name="max_runtime_sigma"   value="0.65"/>
+    <param name="start_gate_timeout"  value="30.0"/>
+    <param name="start_align"         value="true"/>
+    <param name="start_waypoint"      value="start"/>
+    <param name="start_align_tolerance" value="0.08"/>
+    <param name="start_align_yaw"     value="0.10"/>
+    <param name="start_align_timeout" value="45.0"/>
+    <param name="require_start_align" value="false"/>
+    <param name="nav_server_timeout" value="60.0"/>
+    <param name="ready_timeout" value="60.0"/>
+
+    <param name="cmd_topic"       value="/cmd_vel"/>
+    <param name="turn_tf_timeout" value="3.0"/>
+    <param name="turn_settle"     value="0.4"/>
+    <param name="turn_speed"      value="1.2"/>
+    <param name="turn_tolerance"  value="0.06"/>
+    <param name="turn_min_speed"   value="0.18"/>
+    <param name="turn_timeout"    value="20.0"/>
+  </node>
+
+</launch>

@@ -1,0 +1,116 @@
+# navigation displays: both costmaps in costmap colours, the virtual walls
+# overlaid as a map and as line markers
+
+Panels:
+  - Class: rviz/Displays
+    Name: Displays
+
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 0.5
+      Plane Cell Count: 24
+      Color: 90; 90; 90
+
+    - Class: rviz/Map
+      Name: Map
+      Enabled: true
+      Topic: /map
+      Alpha: 0.45
+      Color Scheme: map
+      Draw Behind: true
+
+    - Class: rviz/Map
+      Name: VirtualWalls
+      Enabled: true
+      Topic: /virtual_walls
+      Alpha: 0.85
+      Color Scheme: costmap
+      Draw Behind: false
+
+    - Class: rviz/Marker
+      Name: VirtualWallLines
+      Enabled: true
+      Marker Topic: /virtual_walls_markers
+      Queue Size: 1
+      Namespaces:
+        virtual_walls: true
+
+    - Class: rviz/Map
+      Name: GlobalCostmap
+      Enabled: true
+      Topic: /move_base/global_costmap/costmap
+      Alpha: 0.55
+      Color Scheme: costmap
+      Draw Behind: false
+
+    - Class: rviz/Map
+      Name: LocalCostmap
+      Enabled: true
+      Topic: /move_base/local_costmap/costmap
+      Alpha: 0.75
+      Color Scheme: costmap
+      Draw Behind: false
+
+    - Class: rviz/Path
+      Name: GlobalPlan
+      Enabled: true
+      Topic: /move_base/GlobalPlanner/plan
+      Color: 0; 200; 0
+
+    - Class: rviz/Path
+      Name: LocalPlan
+      Enabled: true
+      Topic: /move_base/TebLocalPlannerROS/local_plan
+      Color: 255; 170; 0
+
+    - Class: rviz/LaserScan
+      Name: LaserScan
+      Enabled: true
+      Topic: /scan
+
+    - Class: rviz/PoseArray
+      Name: Particlecloud
+      Enabled: true
+      Topic: /particlecloud
+      Shape: Arrow (3D)
+      Alpha: 0.1
+
+    - Class: rviz/TF
+      Name: TF
+      Enabled: true
+
+    - Class: rviz/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Robot Description: robot_description
+
+  Global Options:
+    Fixed Frame: map
+    Background Color: 48; 48; 48
+    Frame Rate: 15
+
+  Name: root
+  Tools:
+    - Class: rviz/Interact
+    - Class: rviz/MoveCamera
+    - Class: rviz/Select
+    - Class: rviz/FocusCamera
+    - Class: rviz/Measure
+    - Class: rviz/SetInitialPose
+      Topic: /initialpose
+    - Class: rviz/SetGoal
+      Topic: /move_base_simple/goal
+    - Class: rviz/PublishPoint
+      Single click: true
+      Topic: /clicked_point
+  Value: true
+
+Window Geometry:
+  Height: 900
+  Width: 1400
+  X: 240
+  Y: 160

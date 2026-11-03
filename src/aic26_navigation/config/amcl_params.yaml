@@ -1,0 +1,43 @@
+use_map_topic: false
+odom_frame_id: odom
+base_frame_id: base_footprint
+global_frame_id: map
+odom_model_type: omni
+
+# Motion noise. Stock omni alphas are 0.2, i.e. the filter trusts the odometry;
+# over a full demo the yaw error then accumulates (measured: map->odom yaw
+# -0.3 deg -> +7.6 deg in 11.6 m, and the run died on the return leg). Raising
+# the rotational terms lets the scan pull the pose back instead.
+alpha1: 0.40
+alpha2: 0.40
+alpha3: 0.20
+alpha4: 0.30
+alpha5: 0.30
+
+min_particles: $(arg amcl_min_particles)
+max_particles: $(arg amcl_max_particles)
+kld_err: 0.08
+kld_z: 0.99
+update_min_d: $(arg amcl_update_d)
+update_min_a: $(arg amcl_update_a)
+resample_interval: 1
+transform_tolerance: 0.5
+gui_publish_rate: 2.0
+recovery_alpha_slow: 0.0
+recovery_alpha_fast: 0.0
+
+laser_model_type: likelihood_field
+laser_max_beams: $(arg amcl_beams)
+laser_likelihood_max_dist: 2.0
+sigma_hit: $(arg amcl_sigma_hit)
+z_hit: $(arg amcl_z_hit)
+laser_max_range: 12.0
+laser_min_range: 0.1
+
+set_initial_pose: true
+initial_pose_x: 1.6
+initial_pose_y: 1.7
+initial_pose_a: 3.141592
+initial_cov_xx: $(arg initial_cov)
+initial_cov_yy: $(arg initial_cov)
+initial_cov_aa: $(arg initial_cov)

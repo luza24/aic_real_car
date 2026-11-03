@@ -1,0 +1,8 @@
+{
+  "target": "car",
+  "total": 0,
+  "cars": [],
+  "plate": "",
+  "plate_conf": 0.0,
+  "boxes": {}
+}

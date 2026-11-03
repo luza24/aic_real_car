@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="node_delay" default="0.0"/>
+  <arg name="map_name" default="world"/>
+  <arg name="map_file" default="$(find aic26_slam)/maps/$(arg map_name).yaml"/>
+  <arg name="use_rviz" default="true"/>
+
+  <node pkg="map_server" type="map_server" name="map_server"
+        args="$(arg map_file)"
+        launch-prefix="bash -c 'sleep $(arg node_delay); $0 $@'"/>
+
+  <node if="$(arg use_rviz)" name="rviz" pkg="rviz" type="rviz"
+        args="-d $(find aic26_slam)/rviz/gmapping.rviz"/>
+
+  <node pkg="teleop_twist_keyboard" type="teleop_twist_keyboard.py"
+        name="teleop" output="screen"
+        launch-prefix="bash -c 'xterm -e $0 $@'">
+    <param name="speed" value="0.1"/>
+    <param name="turn"  value="0.5"/>
+    <param name="repeat_rate" value="10.0"/>
+  </node>
+
+</launch>

@@ -1,0 +1,93 @@
+# Synced from real_nostrafe_tasks.yaml on 2026-11-03; Gazebo model positions were NOT moved.
+robot: armbot
+tasks:
+- name: leave_start
+  type: goto
+  waypoint: corner_1
+- name: light_1
+  type: traffic_light
+  waypoint: traffic_light_1
+  light: traffic_light_1
+  wait: 10
+- name: people_b
+  type: inspect
+  waypoint: station_1
+  turn: left
+  dwell: 1.5
+  target: people
+  message: Zone B people inspection finished.
+- name: people_a
+  type: inspect
+  waypoint: station_2
+  turn: left
+  dwell: 1.5
+  target: people
+  message: Zone A people inspection finished.
+- name: people_f
+  type: inspect
+  waypoint: station_3
+  turn: left
+  dwell: 1.5
+  target: people
+  message: Zone F people inspection finished.
+- name: people_c
+  type: inspect
+  waypoint: station_3
+  turn: right
+  dwell: 1.5
+  target: people
+  message: Zone C people inspection finished.
+- name: people_d
+  type: inspect
+  waypoint: traffic_light_2
+  turn: right
+  dwell: 1.5
+  target: people
+  message: Zone D people inspection finished.
+- name: light_2
+  type: traffic_light
+  waypoint: traffic_light_2
+  light: traffic_light_2
+  wait: 10
+- name: corner_3
+  type: goto
+  waypoint: corner_3_to_w
+- name: people_e
+  type: inspect
+  turn: right
+  dwell: 1.5
+  waypoint: station_4_to_n
+  target: people
+  message: Zone E people inspection finished.
+- name: corner_3_out
+  type: goto
+  waypoint: corner_3
+- name: car_1
+  type: inspect
+  waypoint: car_1
+  dwell: 1.5
+  target: car
+  message: Car 1 inspection finished.
+- name: car_2
+  type: inspect
+  waypoint: car_2
+  turn: right
+  dwell: 1.5
+  target: car
+  message: Car 2 inspection finished.
+- name: car_3
+  type: inspect
+  waypoint: car_3
+  turn: right
+  dwell: 1.5
+  target: car
+  message: Car 3 inspection finished.
+- name: return_back
+  type: goto
+  waypoint: corner_1
+- name: return_home
+  type: goto
+  waypoint: start
+- name: summarize
+  type: report
+  message: Inspection complete, reporting results.

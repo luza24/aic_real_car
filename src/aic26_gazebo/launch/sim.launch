@@ -1,0 +1,73 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time"  default=""/>
+  <arg name="show_view" default="false"/>
+  <arg name="gazebo_gui" default="true"/>
+  <arg name="view_gui" default="false"/>
+  <arg name="view_width" default="640"/>
+  <arg name="view_height" default="360"/>
+  <arg name="day_night_gui_delay" default="12.0"/>
+  <arg name="start_x" default="1.6"/>
+  <arg name="start_y" default="1.7"/>
+  <arg name="start_yaw" default="3.141592"/>
+
+  <env name="GAZEBO_PLUGIN_PATH"
+       value="$(find aic26_gazebo)/../../devel/lib:$(optenv GAZEBO_PLUGIN_PATH)"/>
+  <env name="GAZEBO_MODEL_PATH"
+       value="$(find aic26_gazebo)/models:$(optenv GAZEBO_MODEL_PATH)"/>
+
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name"   value="$(find aic26_gazebo)/worlds/community.world"/>
+    <arg name="use_sim_time" value="true"/>
+    <arg name="paused"       value="false"/>
+    <arg name="gui"          value="$(arg gazebo_gui)"/>
+    <arg name="headless"     value="false"/>
+    <arg name="debug"        value="false"/>
+    <arg name="verbose"      value="true"/>
+  </include>
+
+  <param name="/day_night" value="$(arg day_night)"/>
+  <group if="$(eval arg('sky_time') != '')">
+    <param name="/sky_time" value="$(arg sky_time)"/>
+  </group>
+
+  <param name="robot_description"
+         command="$(find xacro)/xacro $(find aic26_description)/urdf/gazebo_car_union.xacro"/>
+
+  <node name="spawn_armbot" pkg="gazebo_ros" type="spawn_model"
+        args="-param robot_description -urdf -model armbot -x $(arg start_x) -y $(arg start_y) -z 0 -Y $(arg start_yaw)"
+        output="screen"/>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher"
+        type="robot_state_publisher" output="screen"/>
+
+  <node pkg="aic26_gazebo" type="traffic_controller.py" name="traffic_controller" output="screen">
+    <param name="command_topic" value="/traffic_light/command"/>
+    <param name="state_topic"   value="/traffic_light/state"/>
+    <param name="rate_hz"       value="20.0"/>
+    <param name="phase_offset"  value="10.0"/>
+    <param name="startup_delay"  value="6.0"/>
+    <param name="refresh_period" value="2.0"/>
+    <rosparam param="durations">
+      RED:    10
+      GREEN:  15
+      YELLOW:  3
+    </rosparam>
+  </node>
+
+  <node pkg="aic26_gazebo" type="day_night.py" name="day_night_gui" output="screen"
+        launch-prefix="bash -c 'sleep $(arg day_night_gui_delay); $0 $@'">
+    <param name="gui" value="$(arg view_gui)"/>
+    <param name="mode" value="$(arg day_night)"/>
+  </node>
+
+  <include if="$(arg view_gui)"
+           file="$(find aic26_utils)/launch/camera_view.launch">
+    <arg name="image" value="/camera/image_raw"/>
+    <arg name="width" value="$(arg view_width)"/>
+    <arg name="height" value="$(arg view_height)"/>
+  </include>
+
+</launch>

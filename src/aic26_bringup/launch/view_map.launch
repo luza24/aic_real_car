@@ -1,0 +1,72 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="backend" default="sim"/>
+  <arg name="sim" default="sim"/>
+  <arg name="day_night" default="day"/>
+  <arg name="sky_time" default=""/>
+  <arg name="show_view" default="true"/>
+  <arg name="use_rviz" default="true"/>
+  <arg name="camera" default="true"/>
+  <arg name="camera_width" default="640"/>
+  <arg name="camera_height" default="480"/>
+  <arg name="camera_fps" default="15"/>
+  <arg name="camera_view_width" default="640"/>
+  <arg name="camera_view_height" default="480"/>
+  <arg name="map_name"
+       default="$(eval 'world_real' if arg('backend') == 'real' else 'world_sim')"/>
+  <arg name="map_file" default="$(find aic26_slam)/maps/$(arg map_name).yaml"/>
+  <arg name="start_x" default="1.6"/>
+  <arg name="start_y" default="1.7"/>
+  <arg name="start_yaw" default="3.141592"/>
+  <arg name="use_imu_yaw" default="true"/>
+  <arg name="chassis_port" default="/dev/carserial"/>
+  <arg name="imu_port" default="/dev/imu"/>
+  <arg name="lidar_port" default="/dev/lslidar"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="node_delay" default="0.0"/>
+
+  <include file="$(find aic26_bringup)/launch/backend.launch">
+    <arg name="backend" value="$(arg backend)"/>
+    <arg name="sim" value="$(arg sim)"/>
+    <arg name="day_night" value="$(arg day_night)"/>
+    <arg name="sky_time" value="$(arg sky_time)"/>
+    <arg name="show_view" value="$(arg show_view)"/>
+    <arg name="use_imu_yaw" value="$(arg use_imu_yaw)"/>
+    <arg name="chassis_port" value="$(arg chassis_port)"/>
+    <arg name="chassis_initial_x" value="$(arg start_x)"/>
+    <arg name="chassis_initial_y" value="$(arg start_y)"/>
+    <arg name="chassis_initial_yaw" value="$(arg start_yaw)"/>
+    <arg name="imu_port" value="$(arg imu_port)"/>
+    <arg name="lidar_port" value="$(arg lidar_port)"/>
+    <arg name="camera_device" value="$(arg camera_device)"/>
+    <arg name="camera" value="$(arg camera)"/>
+    <arg name="camera_width" value="$(arg camera_width)"/>
+    <arg name="camera_height" value="$(arg camera_height)"/>
+    <arg name="camera_fps" value="$(arg camera_fps)"/>
+    <arg name="camera_view_width" value="$(arg camera_view_width)"/>
+    <arg name="camera_view_height" value="$(arg camera_view_height)"/>
+  </include>
+
+  <!-- Keep the TF tree connected while the map is inspected: the `real`
+       chassis starts its odometry at start_x/y/yaw, so map -> odom stays
+       identity, whereas the Gazebo planar-move plugin integrates from
+       (0, 0, 0) at the spawn point, so map -> odom carries the spawn pose. -->
+  <arg name="map_odom_x"
+       default="$(eval 0.0 if arg('backend') == 'real' else arg('start_x'))"/>
+  <arg name="map_odom_y"
+       default="$(eval 0.0 if arg('backend') == 'real' else arg('start_y'))"/>
+  <arg name="map_odom_yaw"
+       default="$(eval 0.0 if arg('backend') == 'real' else arg('start_yaw'))"/>
+
+  <node pkg="tf" type="static_transform_publisher" name="map_to_odom"
+        args="$(arg map_odom_x) $(arg map_odom_y) 0 $(arg map_odom_yaw) 0 0 map odom 100"/>
+
+  <include file="$(find aic26_slam)/launch/view_map.launch">
+    <arg name="node_delay" value="$(arg node_delay)"/>
+    <arg name="map_name" value="$(arg map_name)"/>
+    <arg name="map_file" value="$(arg map_file)"/>
+    <arg name="use_rviz" value="$(arg use_rviz)"/>
+  </include>
+
+</launch>
