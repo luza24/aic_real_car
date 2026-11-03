@@ -75,8 +75,8 @@ class PeopleDetector(object):
             rospy.get_param('~image_topic', '/perception/people/image'),
             Image, queue_size=1)
 
-        rospy.Subscriber(rospy.get_param('~image_in', '/camera/image_raw'),
-                         Image, self.on_image, queue_size=1)
+        self.image_topic = rospy.get_param('~image_in', '/camera/image_raw')
+        self.image_sub = None
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
@@ -106,9 +106,21 @@ class PeopleDetector(object):
             self.active = True
             self.seen = set()
             self.last_infer = rospy.Time(0)
+            self._enable_image()
             rospy.loginfo("people count restarted")
         else:
             self.active = False
+            self._disable_image()
+
+    def _enable_image(self):
+        if self.image_sub is None:
+            self.image_sub = rospy.Subscriber(
+                self.image_topic, Image, self.on_image, queue_size=1)
+
+    def _disable_image(self):
+        if self.image_sub is not None:
+            self.image_sub.unregister()
+            self.image_sub = None
 
     def on_image(self, msg):
         if not self.active:
