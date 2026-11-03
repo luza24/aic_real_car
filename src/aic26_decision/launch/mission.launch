@@ -50,9 +50,9 @@
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
     <param name="turn_settle"     value="0.4"/>
-    <param name="turn_speed"      value="0.8"/>
+    <param name="turn_speed"      value="1.0"/>
     <param name="turn_tolerance"  value="0.06"/>
-    <param name="turn_min_speed"   value="0.15"/>
+    <param name="turn_min_speed"   value="0.18"/>
     <param name="turn_timeout"    value="20.0"/>
   </node>
 
