@@ -1,23 +1,4 @@
-"""
-Shared helpers for the aic26_perception detectors.
-
-The three detector nodes (traffic_light_detector, people_detector,
-car_detector) all run the same kind of model: a YOLOv5/v8 style detector
-exported to int8 ONNX with a fixed input size and an output tensor of shape
-[1, 4 + num_classes, num_anchors] (or the transposed [1, num_anchors,
-4 + num_classes] layout). This module keeps that common part in one place so
-the nodes only deal with their own classes and messages.
-
-Backend
--------
-OpenCV's ``dnn`` module cannot execute the int8 quantisation found in these
-models (it raises an assertion in ``pool2_int8_layer``), so onnxruntime is
-used as the primary backend when it is installed. ``cv2.dnn`` is kept as a
-fallback for float models / environments without onnxruntime.
-
-Everything here is plain Python + OpenCV/numpy and has no ROS dependency, so
-the module can also be imported and unit tested without a running master.
-"""
+"""Shared helpers for the aic26_perception detectors."""
 
 import os
 
@@ -25,26 +6,20 @@ import cv2
 import numpy as np
 
 try:
-    import onnxruntime as ort
-except ImportError:          # fall back to cv2.dnn only
-    ort = None
+    import openvino as ov
+except ImportError:
+    ov = None
 
 try:
-    import openvino as ov
-except ImportError:          # optional, preferred on Intel CPUs
-    ov = None
+    import onnxruntime as ort
+except ImportError:
+    ort = None
 
 
 def to_imgmsg(frame, frame_id=''):
-    """Convert a BGR (or gray) numpy frame to a ``sensor_msgs/Image``.
-
-    ``cv_bridge.cv2_to_imgmsg`` cannot be used here: this workspace runs
-    OpenCV 5, whose ``CV_8UC3`` constant (64) no longer matches the value the
-    ROS Noetic C++ bridge reports for ``bgr8`` (16), so the encoding check
-    raises ``KeyError: 16``. Building the message by hand keeps the debug
-    image stream working regardless of the OpenCV / cv_bridge versions.
-    """
-    from sensor_msgs.msg import Image           # local import: ROS-only module
+    """Convert a BGR/gray numpy frame to ``sensor_msgs/Image``."""
+    import rospy
+    from sensor_msgs.msg import Image
 
     img = np.ascontiguousarray(frame)
     if img.ndim == 2:
@@ -52,14 +27,16 @@ def to_imgmsg(frame, frame_id=''):
         channels = 1
     else:
         height, width, channels = img.shape
+
     if channels == 3:
         encoding = 'bgr8'
     elif channels == 1:
         encoding = 'mono8'
-    else:                                        # BGRA / RGBA
+    else:
         encoding = 'bgra8'
 
     msg = Image()
+    msg.header.stamp = rospy.Time.now()
     msg.header.frame_id = frame_id
     msg.height = int(height)
     msg.width = int(width)
@@ -71,12 +48,7 @@ def to_imgmsg(frame, frame_id=''):
 
 
 def letterbox(img, size):
-    """Resize ``img`` into a ``size`` x ``size`` canvas, keeping aspect ratio.
-
-    Returns ``(canvas, scale, dx, dy)`` where ``scale`` is the resize factor
-    and ``(dx, dy)`` the padding offset of the letterboxed image, so detection
-    boxes can be mapped back to the original frame.
-    """
+    """Resize ``img`` into a ``size`` x ``size`` canvas and keep the offset."""
     h, w = img.shape[:2]
     scale = min(size / w, size / h)
     nw, nh = int(round(w * scale)), int(round(h * scale))
@@ -88,7 +60,7 @@ def letterbox(img, size):
 
 
 def crop_roi(img, roi, pad=0.05):
-    """Crop ``roi`` = [x0, y0, x1, y1] fractions of ``img`` (clamped)."""
+    """Crop ``roi`` = [x0, y0, x1, y1] fractions of ``img``."""
     h, w = img.shape[:2]
     x0 = max(0, min(w, int(round(w * (roi[0] - pad)))))
     y0 = max(0, min(h, int(round(h * (roi[1] - pad)))))
@@ -98,116 +70,139 @@ def crop_roi(img, roi, pad=0.05):
 
 
 def _nms(boxes, scores, conf, nms):
-    """Thin wrapper around ``cv2.dnn.NMSBoxes`` that always returns a list.
-
-    Depending on the OpenCV version the function returns either an ndarray or
-    a tuple, and an empty one when nothing survives; flatten it to a plain
-    list of indices so callers do not have to care.
-    """
     if not boxes:
         return []
     keep = cv2.dnn.NMSBoxes(boxes, scores, conf, nms)
     if keep is None:
         return []
-    keep = np.array(keep).flatten()
-    return [int(i) for i in keep]
+    return [int(i) for i in np.array(keep).flatten()]
 
 
 class YoloNet(object):
-    """YOLOv5/v8 ONNX detector with OpenVINO/onnxruntime/cv2.dnn backends.
-
-    OpenVINO is preferred on Intel CPUs (about 2.5x faster than onnxruntime
-    for the int8 models on the N100), onnxruntime is the portable fallback,
-    and cv2.dnn is only usable for float models.
-    """
+    """YOLOv5/v8 ONNX detector with OpenVINO preferred on the CPU."""
 
     def __init__(self, model_path, size=640, conf=0.5, nms=0.45,
-                 num_classes=None, log=None):
+                 num_classes=None, fallback_path=None, threads=0, log=None):
         self.model_path = model_path
-        self.size = int(size)
+        self.fallback_path = fallback_path
+        self.size = max(32, int(size))
         self.conf = float(conf)
         self.nms = float(nms)
-        self.num_classes = num_classes
+        self.num_classes = int(num_classes) if num_classes else None
+        self.threads = max(0, int(threads))
         self.log = log or (lambda *a: None)
 
         self.ov_compiled = None
         self.ov_request = None
+        self.ov_input = None
         self.session = None
-        self.net = None
         self.input_name = None
+        self.net = None
         self._load()
 
-    # ----------------------------------------------------------------- load
     def _load(self):
-        if not os.path.isfile(self.model_path):
-            self.log('warn', 'model not found: %s', self.model_path)
-            return
-        if self._load_openvino():
-            return
-        if ort is not None:
-            try:
-                providers = [p for p in ('CPUExecutionProvider',)
-                             if p in ort.get_available_providers()]
-                self.session = ort.InferenceSession(
-                    self.model_path, providers=providers or None)
-                self.input_name = self.session.get_inputs()[0].name
-                self._resolve_size(self.session.get_inputs()[0].shape)
-                self.log('info', 'loaded %s with onnxruntime (%s)',
-                         os.path.basename(self.model_path),
-                         ','.join(self.session.get_providers()))
+        path = self.model_path
+        if not os.path.isfile(path):
+            fallback = self.fallback_path
+            if fallback and fallback != path and os.path.isfile(fallback):
+                self.log('warn', '%s not found, using %s', path, fallback)
+                path = self.model_path = fallback
+            else:
+                self.log('error', 'model not found: %s', path)
                 return
-            except Exception as err:                       # noqa: BLE001
-                self.log('warn', 'onnxruntime failed (%s), trying cv2.dnn',
-                         err)
-                self.session = None
-        self._load_cv2()
+        if self._load_openvino(path):
+            return
+        if self._load_onnxruntime(path):
+            return
+        self._load_cv2(path)
 
-    def _load_openvino(self):
-        """Compile the ONNX model for the Intel CPU with OpenVINO.
-
-        Two inference threads leave two of the four N100 cores for ROS,
-        the camera and the other nodes; AIC26_OV_THREADS overrides it.
-        """
+    def _load_openvino(self, path):
         if ov is None:
+            self.log('warn', 'openvino is not installed, trying onnxruntime')
             return False
         try:
-            threads = max(1, int(os.environ.get('AIC26_OV_THREADS', '2')))
+            threads = self._thread_count()
             core = ov.Core()
+            properties = {
+                'INFERENCE_NUM_THREADS': threads,
+                'NUM_STREAMS': 1,
+                'PERFORMANCE_HINT': 'LATENCY',
+            }
             try:
-                core.set_property(
-                    'CPU', {'INFERENCE_NUM_THREADS': threads,
-                            'PERFORMANCE_HINT': 'LATENCY'})
-            except Exception:                              # noqa: BLE001
-                pass
-            model = core.read_model(self.model_path)
+                core.set_property('CPU', properties)
+            except Exception:                             # noqa: BLE001
+                core.set_property('CPU', 'INFERENCE_NUM_THREADS', threads)
+            # core.read_model() drops the class scores of these int8 ONNX
+            # graphs; convert_model() runs the full frontend and is correct.
+            if path.lower().endswith('.xml'):
+                model = core.read_model(path)
+            else:
+                model = ov.convert_model(path)
             self.ov_compiled = core.compile_model(model, 'CPU')
+            self.ov_input = self.ov_compiled.input(0)
+            self._resolve_size(self.ov_input.shape)
             self.ov_request = self.ov_compiled.create_infer_request()
-            self._resolve_size(self.ov_compiled.input(0).shape)
             self.log('info', 'loaded %s with openvino (CPU, %d threads)',
-                     os.path.basename(self.model_path), threads)
+                     os.path.basename(path), threads)
             return True
         except Exception as err:                           # noqa: BLE001
-            self.log('warn', 'openvino failed (%s), trying onnxruntime', err)
+            self.log('warn', 'openvino failed to load %s: %s', path, err)
             self.ov_compiled = None
             self.ov_request = None
+            self.ov_input = None
             return False
 
-    def _load_cv2(self):
+    def _load_onnxruntime(self, path):
+        if ort is None:
+            self.log('warn', 'onnxruntime is not installed, trying cv2.dnn')
+            return False
         try:
-            self.net = cv2.dnn.readNetFromONNX(self.model_path)
+            available = ort.get_available_providers()
+            providers = [p for p in ('CUDAExecutionProvider',
+                                     'CPUExecutionProvider')
+                         if p in available]
+            self.session = ort.InferenceSession(
+                path, providers=providers or None)
+            self.input_name = self.session.get_inputs()[0].name
+            self._resolve_size(self.session.get_inputs()[0].shape)
+            self.log('info', 'loaded %s with onnxruntime (%s)',
+                     os.path.basename(path),
+                     ','.join(self.session.get_providers()))
+            return True
+        except Exception as err:                           # noqa: BLE001
+            self.log('warn', 'onnxruntime failed to load %s: %s', path, err)
+            self.session = None
+            self.input_name = None
+            return False
+
+    def _load_cv2(self, path):
+        try:
+            self.net = cv2.dnn.readNetFromONNX(path)
         except cv2.error as err:
-            self.log('warn', 'failed to load model: %s', err)
+            self.log('error', 'cv2.dnn failed to load %s: %s', path, err)
+            self.net = None
             return
-        self.log('info', 'loaded %s with cv2.dnn',
-                 os.path.basename(self.model_path))
+        self.log('info', 'loaded %s with cv2.dnn', os.path.basename(path))
+
+    def _thread_count(self):
+        if self.threads > 0:
+            wanted = self.threads
+        else:
+            raw = os.environ.get('AIC26_OV_THREADS')
+            wanted = 2
+            if raw:
+                try:
+                    wanted = int(raw)
+                except ValueError:
+                    pass
+        return max(1, min(wanted, os.cpu_count() or 1))
 
     def _resolve_size(self, shape):
-        """Adopt the model's fixed input size when it is statically known."""
         try:
-            h, w = int(shape[2]), int(shape[3])
+            h, w = int(shape[-2]), int(shape[-1])
         except (IndexError, TypeError, ValueError):
             return
-        if 0 < h and 0 < w and (h != self.size or w != self.size):
+        if h > 0 and w > 0 and (h != self.size or w != self.size):
             self.log('info', 'using model input size %dx%d (was %d)',
                      w, h, self.size)
             self.size = max(h, w)
@@ -217,56 +212,56 @@ class YoloNet(object):
         return (self.ov_request is not None or self.session is not None or
                 self.net is not None)
 
-    # ---------------------------------------------------------------- infer
     def _forward(self, blob):
         if self.ov_request is not None:
-            self.ov_request.infer({0: blob})
-            return self.ov_request.get_output_tensor(0).data
+            self.ov_request.infer({self.ov_input: blob})
+            return np.array(self.ov_request.get_output_tensor(0).data,
+                            copy=True)
         if self.session is not None:
             return self.session.run(None, {self.input_name: blob})[0]
-        self.net.setInput(blob)
         return self.net.forward()
 
     def infer(self, frame):
-        """Detect in ``frame``; returns a list of (cls_id, score, box).
-
-        ``box`` is [x, y, w, h] in pixels of the original frame, clamped to it.
-        """
+        """Return (class_id, score, [x, y, w, h]) detections for ``frame``."""
         if not self.ready:
             return []
 
         img, scale, dx, dy = letterbox(frame, self.size)
         blob = cv2.dnn.blobFromImage(img, 1 / 255.0, (self.size, self.size),
                                      swapRB=True, crop=False)
-        out = np.asarray(self._forward(blob))
-        if out.ndim == 3:
-            out = out[0]
-        return self._decode(out, scale, dx, dy, frame.shape)
+        return self._decode(self._forward(blob), scale, dx, dy, frame.shape)
 
     def _decode(self, out, scale, dx, dy, frame_shape):
-        # accept both [4+nc, N] and [N, 4+nc] export layouts
-        if out.shape[0] < out.shape[1]:
-            preds = out.T
-        else:
-            preds = out
+        if out.ndim == 3:
+            out = out[0]
+        if out.ndim != 2 or out.shape[0] == 0 or out.shape[1] == 0:
+            return []
 
+        preds = out.T if out.shape[0] < out.shape[1] else out
         if preds.shape[1] < 5:
             return []
 
-        # Vectorised threshold: the old Python loop over 8400 anchors cost
-        # 60-70 ms per frame on the N100, more than the model itself after
-        # switching to OpenVINO.
+        expected = 4 + self.num_classes if self.num_classes else 0
+        if expected and preds.shape[1] != expected:
+            if preds.shape[1] < expected:
+                self.log('warn',
+                         'model output has %d values per anchor, expected %d',
+                         preds.shape[1], expected)
+                return []
+            preds = preds[:, :expected]
+
         cls_scores = preds[:, 4:]
         scores = cls_scores.max(axis=1)
         ids = cls_scores.argmax(axis=1)
         mask = scores >= self.conf
         if not np.any(mask):
             return []
+
         det = preds[mask]
         scores = scores[mask]
         ids = ids[mask]
-
         cx, cy, bw, bh = det[:, 0], det[:, 1], det[:, 2], det[:, 3]
+
         boxes = np.empty((det.shape[0], 4), dtype=np.float64)
         boxes[:, 0] = (cx - bw / 2.0 - dx) / scale
         boxes[:, 1] = (cy - bh / 2.0 - dy) / scale
@@ -276,10 +271,12 @@ class YoloNet(object):
         boxes = boxes.tolist()
         scores = scores.tolist()
         ids = ids.tolist()
-        return [(int(ids[i]), float(scores[i]), self._clamp(boxes[i], frame_shape))
+        return [(int(ids[i]), float(scores[i]),
+                 self._clamp(boxes[i], frame_shape))
                 for i in _nms(boxes, scores, self.conf, self.nms)]
 
-    def _clamp(self, box, frame_shape):
+    @staticmethod
+    def _clamp(box, frame_shape):
         h, w = frame_shape[:2]
         x, y, bw, bh = box
         x0 = max(0, min(w, x))

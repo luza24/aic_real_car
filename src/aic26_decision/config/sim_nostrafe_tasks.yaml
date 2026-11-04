@@ -90,4 +90,4 @@ tasks:
   waypoint: start
 - name: summarize
   type: report
-  message: Inspection complete, reporting results.
+  message: 检查完成，正在汇报结果。

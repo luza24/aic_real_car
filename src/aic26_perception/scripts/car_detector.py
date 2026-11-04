@@ -111,6 +111,8 @@ class CarDetector(object):
         self.plate_conf = 0.0
         self.plate_done = True   # nothing pending until a "car" detect arrives
         self.active = False      # only detect while "car" is requested
+        self.state_lock = threading.Lock()
+        self.session = 0         # bumped on every trigger/stop
 
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
@@ -185,7 +187,7 @@ class CarDetector(object):
             best = results[0]
         return best
 
-    def read_plate_async(self, frame, box):
+    def read_plate_async(self, frame, box, session):
         """Crop the plate of ``box`` and OCR it on a worker thread."""
         if not self.plate_done or self.ocr_thread is not None:
             return
@@ -199,25 +201,44 @@ class CarDetector(object):
         crop = crop_roi(car, self.plate_roi)
         if crop.size == 0:
             return
-        self.plate_done = False
-        self.ocr_thread = threading.Thread(
-            target=self._run_ocr, args=(crop.copy(),),
-            name='car_plate_ocr')
-        self.ocr_thread.daemon = True
-        self.ocr_thread.start()
+        crop = crop.copy()
 
-    def _run_ocr(self, crop):
+        with self.state_lock:
+            if (session != self.session or not self.active or
+                    not self.plate_done or self.ocr_thread is not None):
+                return
+            self.plate_done = False
+            self.ocr_thread = threading.Thread(
+                target=self._run_ocr, args=(crop, session),
+                name='car_plate_ocr')
+            self.ocr_thread.daemon = True
+            self.ocr_thread.start()
+
+    def _run_ocr(self, crop, session):
         t0 = time.time()
         try:
             text, conf = self.recognize(crop)
         except Exception as err:                       # noqa: BLE001
             rospy.logwarn("car_detector: OCR failed: %s", err)
             text, conf = '', 0.0
-        self.plate, self.plate_conf = text, conf
-        self.plate_done = True
-        self.ocr_thread = None
-        rospy.loginfo("car_detector: plate '%s' (%.2f, %.2fs)",
-                      text, conf, time.time() - t0)
+
+        with self.state_lock:
+            current = (session == self.session and self.active)
+            current_session = self.session
+            if current:
+                self.plate, self.plate_conf = text, conf
+                self.plate_done = True
+            # only this worker may clear its own handle; a newer trigger may
+            # already own ocr_thread
+            if self.ocr_thread is threading.current_thread():
+                self.ocr_thread = None
+
+        if current:
+            rospy.loginfo("car_detector: plate '%s' (%.2f, %.2fs)",
+                          text, conf, time.time() - t0)
+        else:
+            rospy.loginfo("car_detector: discarding stale OCR result "
+                          "(session %d, current %d)", session, current_session)
 
     # ----------------------------------------------------------------- io
     def on_detect(self, msg):
@@ -225,16 +246,21 @@ class CarDetector(object):
         # target (or "stop") switches this one off again
         req = msg.data.strip().lower()
         if req == 'car':
-            self.active = True
-            self.seen = set()
-            self.plate = ''
-            self.plate_conf = 0.0
-            self.plate_done = True
-            self.last_infer = rospy.Time(0)
+            with self.state_lock:
+                self.session += 1
+                session = self.session
+                self.active = True
+                self.seen = set()
+                self.plate = ''
+                self.plate_conf = 0.0
+                self.plate_done = True
+                self.last_infer = rospy.Time(0)
             self._enable_image()
-            rospy.loginfo("car read restarted")
+            rospy.loginfo("car read restarted (session %d)", session)
         else:
-            self.active = False
+            with self.state_lock:
+                self.session += 1
+                self.active = False
             self._disable_image()
 
     def _enable_image(self):
@@ -248,28 +274,41 @@ class CarDetector(object):
             self.image_sub = None
 
     def on_image(self, msg):
-        if not self.active:
-            return
-        if not self.net.ready:
-            return
-        now = rospy.Time.now()
-        if (self.max_rate > 0.0 and
-                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
-            return
-        self.last_infer = now
+        with self.state_lock:
+            if not self.active:
+                return
+            if not self.net.ready:
+                return
+            now = rospy.Time.now()
+            if (self.max_rate > 0.0 and
+                    (now - self.last_infer).to_sec() <
+                    1.0 / self.max_rate):
+                return
+            self.last_infer = now
+            session = self.session
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)
-        for name, score, box in dets:
-            self.seen.add(name)
+
+        with self.state_lock:
+            if session != self.session or not self.active:
+                return
+            for name, score, box in dets:
+                self.seen.add(name)
+
         # kick off OCR for the strongest car (detections come NMS-sorted by
         # score, but sort defensively so the pick does not depend on that)
         if dets:
             best = max(dets, key=lambda d: d[1])
-            self.read_plate_async(frame, best[2])
+            self.read_plate_async(frame, best[2], session)
         self.wait_for_ocr()
-        self.publish_result(dets)
-        self.publish_debug(frame, dets)
+
+        with self.state_lock:
+            if session != self.session or not self.active:
+                return
+
+        self.publish_result(dets, session)
+        self.publish_debug(frame, dets, session)
 
     def wait_for_ocr(self):
         """Give a freshly started OCR read up to ``~ocr_wait`` to finish.
@@ -278,11 +317,20 @@ class CarDetector(object):
         the plate as soon as the worker is done keeps the result in the same
         window without blocking the detector for long.
         """
-        if self.plate_done or self.ocr_thread is None:
-            return
-        self.ocr_thread.join(self.ocr_wait)
+        with self.state_lock:
+            if self.plate_done or self.ocr_thread is None:
+                return
+            thread = self.ocr_thread
+        thread.join(self.ocr_wait)
 
-    def publish_result(self, dets):
+    def publish_result(self, dets, session):
+        with self.state_lock:
+            if session != self.session or not self.active:
+                return
+            seen = sorted(self.seen)
+            plate = self.plate
+            plate_conf = self.plate_conf
+
         boxes = {}
         for name, _, box in dets:
             boxes.setdefault(name, []).append(
@@ -292,15 +340,21 @@ class CarDetector(object):
         out.data = json.dumps({
             'target': 'car',
             'total': len(dets),
-            'cars': sorted(self.seen),
-            'plate': self.plate,
-            'plate_conf': round(float(self.plate_conf), 3),
+            'cars': seen,
+            'plate': plate,
+            'plate_conf': round(float(plate_conf), 3),
             'boxes': boxes,
         })
         self.result_pub.publish(out)
 
 
-    def publish_debug(self, frame, dets):
+    def publish_debug(self, frame, dets, session):
+        with self.state_lock:
+            if session != self.session or not self.active:
+                return
+            plate = self.plate
+            plate_conf = self.plate_conf
+
         for name, score, box in dets:
             x, y, w, h = [int(v) for v in box]
             cv2.rectangle(frame, (x, y), (x + w, y + h), COLOR_CAR, 2)
@@ -313,8 +367,8 @@ class CarDetector(object):
             px1 = x + int(self.plate_roi[2] * w)
             py1 = y + int(self.plate_roi[3] * h)
             cv2.rectangle(frame, (px0, py0), (px1, py1), COLOR_PLATE, 1)
-            if self.plate:
-                cv2.putText(frame, '%.2f' % self.plate_conf, (x, y + h + 16),
+            if plate:
+                cv2.putText(frame, '%.2f' % plate_conf, (x, y + h + 16),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, COLOR_PLATE, 1)
         try:
             self.image_pub.publish(to_imgmsg(frame))

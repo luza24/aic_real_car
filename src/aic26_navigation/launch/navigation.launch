@@ -13,10 +13,10 @@
   <arg name="footprint"
        default="[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]"/>
   <arg name="initial_cov" default="0.03"/>
-  <arg name="max_vel_x" default="0.36"/>
-  <arg name="max_vel_x_backwards" default="0.22"/>
+  <arg name="max_vel_x" default="0.45"/>
+  <arg name="max_vel_x_backwards" default="0.26"/>
   <arg name="max_vel_y" default="0.18"/>
-  <arg name="max_vel_theta" default="0.85"/>
+  <arg name="max_vel_theta" default="1.0"/>
   <arg name="acc_lim_x" default="1.0"/>
   <arg name="acc_lim_y" default="1.0"/>
   <arg name="acc_lim_theta" default="1.2"/>

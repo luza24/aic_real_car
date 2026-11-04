@@ -31,7 +31,7 @@ import yaml
 from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Bool, Float32
+from std_msgs.msg import Bool, Float32, String
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -44,6 +44,104 @@ GREEN = 'GREEN'
 
 TURN_LEFT = 1.570796
 TURN_RIGHT = -1.570796
+
+LANGUAGES = ('zh', 'en')
+
+# Announcement templates. The Chinese wording is the default; the English
+# texts are kept so a run can switch back with ~speech_language.
+RESULT_MESSAGES = {
+    'zh': {
+        'people_intruder': '本区域共检测到 %d 人，其中 %d 人为非社区人员。',
+        'people_clear': '本区域共检测到 %d 人，未发现非社区人员。',
+        'car_plate': '检测到车辆，车牌号为 %s。',
+        'car_no_plate': '检测到车辆，但未能识别车牌。',
+    },
+    'en': {
+        'people_intruder': ('Community has %d people, %d non-community '
+                            'people found.'),
+        'people_clear': 'Community has %d people, no non-community people.',
+        'car_plate': 'Car here has plate %s.',
+        'car_no_plate': 'Car here but the plate was not recognised.',
+    },
+}
+
+
+def normalize_plate(plate):
+    """Strip separators that make the TTS pause inside a plate number."""
+    text = str(plate or '')
+    for sep in ('·', '•', '.'):
+        text = text.replace(sep, '')
+    return ''.join(text.split())
+
+
+def format_result_message(target, payload, language='zh'):
+    """Turn one detection payload into one announcement sentence.
+
+    Returns an empty string when there is no usable result, so callers can
+    stay silent instead of announcing a stale or made-up value. The payloads
+    are the json objects published by the aic26_perception detectors.
+    """
+    if not isinstance(payload, dict) or not payload:
+        return ''
+    if language not in RESULT_MESSAGES:
+        language = 'zh'
+    text = RESULT_MESSAGES[language]
+
+    if target == 'people':
+        if 'total' not in payload:
+            return ''
+        try:
+            total = max(0, int(payload.get('total') or 0))
+            intruder = max(0, int(payload.get('intruder') or 0))
+        except (TypeError, ValueError):
+            return ''
+        if intruder:
+            return text['people_intruder'] % (total, intruder)
+        return text['people_clear'] % total
+
+    if target == 'car':
+        # total == 0 means no car was seen, not "a car without a plate"
+        if 'total' in payload:
+            try:
+                if int(payload.get('total') or 0) <= 0:
+                    return ''
+            except (TypeError, ValueError):
+                return ''
+        plate = normalize_plate(payload.get('plate', ''))
+        if plate:
+            return text['car_plate'] % plate
+        return text['car_no_plate']
+
+    return ''
+
+
+class SpeechAnnouncer(object):
+    """Publish plain-text announcements on one std_msgs/String topic."""
+
+    def __init__(self, topic, language='zh', enabled=True):
+        if language not in LANGUAGES:
+            rospy.logwarn("unknown speech language %r, using zh", language)
+            language = 'zh'
+        self.language = language
+        self.enabled = bool(enabled) and bool(topic)
+        self.pub = None
+        if self.enabled:
+            self.pub = rospy.Publisher(topic, String, queue_size=10)
+
+    def speak(self, text):
+        """Publish ``text``; empty announcements are dropped as well."""
+        if not self.enabled or not text:
+            return False
+        msg = String()
+        msg.data = text
+        self.pub.publish(msg)
+        rospy.loginfo("speak: %s", text)
+        return True
+
+    def announce_result(self, target, payload):
+        """Announce one detection payload (silent when it has no data)."""
+        return self.speak(
+            format_result_message(target, payload, self.language))
 
 
 def wrap_angle(angle):
@@ -210,6 +308,11 @@ class RobotDriver(object):
             rospy.get_param('~max_odom_yaw_accept', 0.35))
         self.odom_jump_gap = float(
             rospy.get_param('~odom_jump_max_gap', 0.6))
+        # The check samples the composed pose on a 0.2 s timer. At 0.45 m/s
+        # that is already ~9 cm of normal travel, so a fixed 0.10 m limit
+        # fires on plain driving. Scale the limit by the sample interval.
+        self.odom_jump_max_speed = float(
+            rospy.get_param('~odom_jump_max_speed', 0.5))
         self.odom_jump_hold = bool(
             rospy.get_param('~odom_jump_hold', True))
         self.odom_jump_recover = bool(
@@ -377,11 +480,15 @@ class RobotDriver(object):
         self._last_mod_yaw = mod[2]
         if previous is None or previous_mod_yaw is None:
             return
-        if (now - previous_time).to_sec() > self.odom_jump_gap:
+        dt = (now - previous_time).to_sec()
+        if dt > self.odom_jump_gap:
             return
         moved = math.hypot(pose[0] - previous[0], pose[1] - previous[1])
         turned = abs(wrap_angle(mod[2] - previous_mod_yaw))
-        if moved <= self.odom_jump_limit:
+        # Tolerate the distance the robot can legitimately cover since the
+        # last sample; a real AMCL jump still shows up as the remainder.
+        move_limit = self.odom_jump_limit + self.odom_jump_max_speed * dt
+        if moved <= move_limit:
             if turned <= self.odom_yaw_jump_limit:
                 return
             if turned <= self.odom_yaw_accept:

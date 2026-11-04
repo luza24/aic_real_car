@@ -13,6 +13,8 @@
   <arg name="gui"            default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="results_dir"    default="$(find aic26_perception)/results"/>
   <arg name="light_fallback" default=""/>
+  <arg name="speech_language" default="zh"/>
+  <arg name="speech_enabled"  default="true"/>
   <arg name="node_delay"     default="0.0"/>
 
   <node name="mission_controller" pkg="aic26_decision"
@@ -27,6 +29,8 @@
     <param name="result_topic"  value="/perception/result"/>
     <param name="detect_topic"  value="/perception/detect"/>
     <param name="speech_topic"  value="/speech"/>
+    <param name="speech_language" value="$(arg speech_language)"/>
+    <param name="speech_enabled"  value="$(arg speech_enabled)" type="bool"/>
     <param name="gui"           value="$(arg gui)"/>
     <param name="results_dir"   value="$(arg results_dir)"/>
     <param name="detect_wait"   value="1.0"/>
@@ -50,7 +54,7 @@
     <param name="cmd_topic"       value="/cmd_vel"/>
     <param name="turn_tf_timeout" value="3.0"/>
     <param name="turn_settle"     value="0.4"/>
-    <param name="turn_speed"      value="1.0"/>
+    <param name="turn_speed"      value="1.2"/>
     <param name="turn_tolerance"  value="0.06"/>
     <param name="turn_min_speed"   value="0.18"/>
     <param name="turn_timeout"    value="20.0"/>

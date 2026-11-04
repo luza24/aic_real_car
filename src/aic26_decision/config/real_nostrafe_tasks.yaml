@@ -10,7 +10,7 @@ tasks:
     type: traffic_light
     waypoint: "traffic_light_1"
     light: "traffic_light_1"
-    wait: 30
+    wait: 10
 
   - name: "people_b"
     type: inspect
@@ -56,11 +56,32 @@ tasks:
     type: traffic_light
     waypoint: "traffic_light_2"
     light: "traffic_light_2"
-    wait: 30
+    wait: 10
+  
+  - name: "corner_3"
+    type: goto
+    waypoint: "corner_3_to_w"
 
+  - name: "people_e"
+    type: inspect
+    turn: "right"
+    dwell: 1.5
+    waypoint: "station_4_to_n"
+    target: "people"
+    message: "Zone E people inspection finished."
+
+  - name: "corner_3_out"
+    type: goto
+    waypoint: "corner_3"
+   
+  - name: "light_2_toc"
+    type: goto
+    waypoint: "traffic_light_2_to_corner"
+    
   - name: "car_1"
     type: inspect
     waypoint: "car_1"
+    turn: "right"
     dwell: 1.5
     target: "car"
     message: "Car 1 inspection finished."
@@ -91,4 +112,4 @@ tasks:
 
   - name: "summarize"
     type: report
-    message: "Inspection complete, reporting results."
+    message: "检查完成，正在汇报结果。"

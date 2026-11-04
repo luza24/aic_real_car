@@ -20,6 +20,8 @@
   <arg name="gui" default="$(eval 'false' if arg('backend') == 'sim' else 'true')"/>
   <arg name="light_fallback"
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
+  <arg name="speech_language" default="zh"/>
+  <arg name="speech_enabled" default="true"/>
   <arg name="set_initial_pose" default="true"/>
   <arg name="initial_pose_x" default="1.6"/>
   <arg name="initial_pose_y" default="1.7"/>
@@ -32,10 +34,10 @@
        default="$(eval '[[-0.185, -0.0875], [-0.185, 0.0875], [-0.135, 0.1425], [0.135, 0.1425], [0.1575, 0.0875], [0.1575, -0.0875], [0.135, -0.1425], [-0.135, -0.1425]]' if arg('backend') == 'real' else '[[-0.142, -0.136], [-0.142, 0.136], [0.142, 0.136], [0.142, -0.136]]')"/>
   <arg name="initial_cov"
        default="$(eval '0.03' if arg('backend') == 'real' else '0.03')"/>
-  <arg name="max_vel_x" default="0.36"/>
-  <arg name="max_vel_x_backwards" default="0.22"/>
+  <arg name="max_vel_x" default="0.45"/>
+  <arg name="max_vel_x_backwards" default="0.26"/>
   <arg name="max_vel_y" default="0.18"/>
-  <arg name="max_vel_theta" default="0.85"/>
+  <arg name="max_vel_theta" default="1.0"/>
   <arg name="acc_lim_x" default="1.0"/>
   <arg name="acc_lim_y" default="1.0"/>
   <arg name="acc_lim_theta" default="1.2"/>
@@ -116,6 +118,8 @@
     <arg name="disable_strafe" value="$(arg disable_strafe)"/>
     <arg name="gui" value="$(arg gui)"/>
     <arg name="light_fallback" value="$(arg light_fallback)"/>
+    <arg name="speech_language" value="$(arg speech_language)"/>
+    <arg name="speech_enabled" value="$(arg speech_enabled)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
 

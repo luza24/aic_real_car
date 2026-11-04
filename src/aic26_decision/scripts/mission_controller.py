@@ -47,7 +47,8 @@ from sensor_msgs.msg import Image
 from std_msgs.msg import String
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from mission_common import GREEN, RobotDriver, load_waypoints      # noqa: E402
+from mission_common import (GREEN, RobotDriver, SpeechAnnouncer,  # noqa: E402
+                            format_result_message, load_waypoints)
 
 try:
     from aic26_msgs.msg import TrafficLightState
@@ -85,10 +86,14 @@ class MissionController(RobotDriver):
         self.vision_states = {}   # light model -> state from vision
         self.truth_states = {}    # light model -> state from sim truth
         self.results = {}         # detection results, keyed by target
+        self.result_seq = {}      # target -> number of results received
         self.light_fallback = rospy.get_param('~light_fallback', '')
 
-        self.speech_pub = rospy.Publisher(
-            rospy.get_param('~speech_topic', '/speech'), String, queue_size=10)
+        self.speech_language = rospy.get_param('~speech_language', 'zh')
+        self.speech_enabled = bool(rospy.get_param('~speech_enabled', True))
+        self.announcer = SpeechAnnouncer(
+            rospy.get_param('~speech_topic', '/speech'),
+            self.speech_language, self.speech_enabled)
         self.detect_pub = rospy.Publisher(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, queue_size=10)
@@ -131,6 +136,9 @@ class MissionController(RobotDriver):
         target = payload.get("target")
         if target:
             self.results[target] = payload
+            # bump the counter so trigger_detect can tell a fresh result
+            # from the previous stop's cached payload
+            self.result_seq[target] = self.result_seq.get(target, 0) + 1
         else:
             self.results.update(payload)
 
@@ -154,27 +162,16 @@ class MissionController(RobotDriver):
 
     # ---------------------------------------------------------------- output
     def speak(self, text):
-        msg = String()
-        msg.data = text
-        self.speech_pub.publish(msg)
-        rospy.loginfo("speak: %s", text)
+        return self.announcer.speak(text)
 
-    def build_message(self, task):
-        # people tasks report the running totals, others use the fixed text
+    def build_message(self, task, result=None):
+        # ``result`` is the payload received for this stop.  The shared
+        # formatter stays silent when there is no usable result, so a
+        # missing detection is never announced as zero people.
         target = task.get("target")
-        if target == "people":
-            res = self.result_for("people")
-            total = res.get("total", 0)
-            intruder = res.get("intruder", 0)
-            if intruder:
-                return ("Community has %d people, %d non-community "
-                        "people found." % (total, intruder))
-            return "Community has %d people, no non-community people." % total
-        if target == "car":
-            res = self.result_for("car")
-            plate = res.get("plate", "")
-            if plate:
-                return "Car here has plate %s." % plate
+        if target in ("people", "car"):
+            return format_result_message(
+                target, result, self.speech_language)
         return task.get("message", "inspection finished")
 
     def trigger_detect(self, target):
@@ -182,11 +179,20 @@ class MissionController(RobotDriver):
 
         Publishing the target also switches the other detector nodes off, so
         only the requested one runs while this stop is being inspected.
+
+        Returns the result received after this call, or None when no fresh
+        result arrived within ``~detect_wait``.  Callers use this to tell a
+        real zero-person detection from a missing result.
         """
+        self.results.pop(target, None)
+        start_seq = self.result_seq.get(target, 0)
         req = String()
         req.data = target
         self.detect_pub.publish(req)
         rospy.sleep(rospy.get_param('~detect_wait', 1.0))
+        if self.result_seq.get(target, 0) == start_seq:
+            return None
+        return self.results.get(target)
 
     def stop_detect(self):
         """Tell the detectors to stop; none of them runs between stops."""
@@ -221,7 +227,6 @@ class MissionController(RobotDriver):
         if ttype == "traffic_light":
             # trigger the vision detector at the stop line (same as the inspect
             # tasks) so the light is only inspected here, not between stops
-            self.results.pop("traffic_light", None)
             self.vision_states.pop(task["light"], None)
             if self.light_fallback:
                 self.vision_states.pop(self.light_fallback, None)
@@ -233,12 +238,11 @@ class MissionController(RobotDriver):
         if ttype == "inspect":
             rospy.sleep(task.get("dwell", 0.0))
             target = task.get("target")
+            result = None
             if target:
-                # drop the previous reading so the announcement describes this
-                # stop, not the one before it
-                self.results.pop(target, None)
-                self.trigger_detect(target)
-            self.speak(self.build_message(task))
+                result = self.trigger_detect(target)
+            if task.get("announce", True):
+                self.speak(self.build_message(task, result))
             self.stop_detect()
 
         # face the waypoint heading again so the next go_to starts from the

@@ -25,24 +25,45 @@ waypoints:
     y: 0.45
     yaw: 0.000000
     dwell: 2.0
+  
+  - name: "station_4_to_n"
+    x: -1.7
+    y: -0.2
+    yaw: 1.570796
+    dwell: 0.0  
+  
   - name: "traffic_light_2"
     x: -0.1
     y: -0.1
     yaw: 4.712388
     dwell: 0.0
+  
+  - name: "traffic_light_2_to_corner"
+    x: -0.1
+    y: -1.65
+    yaw: 0.000000
+    dwell: 0.0
+
+  - name: "traffic_2_cor3"
+    x: -0.1
+    y: -1.65
+    yaw: 4.712388
+    dwell: 0.0  
+
+  
   - name: "car_1"
     x: 1.1
     y: -1.6
-    yaw: 0.000000
+    yaw: 1.570796
     dwell: 0.0
   - name: "car_2"
     x: 1.1
-    y: -0.9
+    y: -1.0
     yaw: 1.570796
     dwell: 0.0
   - name: "car_3"
     x: 1.1
-    y: -0.3
+    y: -0.4
     yaw: 1.570796
     dwell: 0.0
   - name: "corner_1"
@@ -60,6 +81,12 @@ waypoints:
     y: -1.7
     yaw: 0.000000
     dwell: 0.0
+  - name: "corner_3_to_w"
+    x: -1.7
+    y: -1.7
+    yaw: 1.570796
+    dwell: 0.0
+
   - name: "corner_4"
     x: 1.1
     y: -1.7
