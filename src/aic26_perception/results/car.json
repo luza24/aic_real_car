@@ -1,19 +1,13 @@
 {
+  "schema": 2,
   "target": "car",
-  "total": 1,
-  "cars": [
-    "car"
-  ],
+  "request_id": "fda73dec:11",
+  "session": 5,
+  "complete": true,
+  "total": 0,
+  "cars": [],
   "plate": "",
   "plate_conf": 0.0,
-  "boxes": {
-    "car": [
-      [
-        488.8,
-        138.8,
-        610.2,
-        466.8
-      ]
-    ]
-  }
+  "ocr_status": "no_car",
+  "boxes": {}
 }

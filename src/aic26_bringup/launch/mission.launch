@@ -22,6 +22,17 @@
        default="$(eval 'traffic_light' if arg('backend') == 'real' else '')"/>
   <arg name="speech_language" default="zh"/>
   <arg name="speech_enabled" default="true"/>
+  <arg name="people_observe_time"
+       default="$(eval '3.0' if arg('backend') == 'sim' else '0.8')"/>
+  <arg name="people_min_frames" default="2"/>
+  <arg name="people_detect_timeout"
+       default="$(eval '10.0' if arg('backend') == 'sim' else '4.0')"/>
+  <arg name="car_detect_timeout" default="12.0"/>
+  <arg name="ocr_preload" default="true"/>
+  <arg name="ocr_num_threads" default="2"/>
+  <arg name="car_request_timeout" default="10.0"/>
+  <arg name="car_empty_observe_time" default="1.0"/>
+  <arg name="protocol_wait" default="10.0"/>
   <arg name="set_initial_pose" default="true"/>
   <arg name="initial_pose_x" default="1.6"/>
   <arg name="initial_pose_y" default="1.7"/>
@@ -107,9 +118,15 @@
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
   <include file="$(find aic26_perception)/launch/people.launch">
+    <arg name="observe_time" value="$(arg people_observe_time)"/>
+    <arg name="min_frames" value="$(arg people_min_frames)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
   <include file="$(find aic26_perception)/launch/car.launch">
+    <arg name="ocr_preload" value="$(arg ocr_preload)"/>
+    <arg name="ocr_num_threads" value="$(arg ocr_num_threads)"/>
+    <arg name="request_timeout" value="$(arg car_request_timeout)"/>
+    <arg name="empty_observe_time" value="$(arg car_empty_observe_time)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
 
@@ -120,6 +137,9 @@
     <arg name="light_fallback" value="$(arg light_fallback)"/>
     <arg name="speech_language" value="$(arg speech_language)"/>
     <arg name="speech_enabled" value="$(arg speech_enabled)"/>
+    <arg name="people_detect_timeout" value="$(arg people_detect_timeout)"/>
+    <arg name="car_detect_timeout" value="$(arg car_detect_timeout)"/>
+    <arg name="protocol_wait" value="$(arg protocol_wait)"/>
     <arg name="node_delay" value="$(arg task_delay)"/>
   </include>
 

@@ -4,8 +4,12 @@ Traffic light state detector.
 Runs an int8 ONNX model on the camera stream and publishes the light state.
 
     sub : /camera/image_raw                    (sensor_msgs/Image)
-    pub : /perception/traffic_light            (aic26_msgs/TrafficLightState)
+    sub : /perception/detect                   (std_msgs/String, JSON or text)
+    pub : /perception/traffic_light            (aic26_msgs/TrafficLightState,
+                                                 latched, kept for old clients)
+    pub : /perception/traffic_light/event      (std_msgs/String, json, v2)
     pub : /perception/traffic_light/image      (sensor_msgs/Image, debug)
+    pub : /perception/traffic_light/protocol   (std_msgs/String, latched, json)
 
 The reported ``model_name`` comes from the ``~node_name`` parameter and has to
 match the traffic light model in the world file (``traffic_light_1`` /
@@ -28,8 +32,10 @@ A traffic light shows its three lenses at the same time, so every lens is
 detected and the light state is the color whose lens is "on".
 """
 
+import json
 import os
 import sys
+import threading
 
 import cv2
 import rospy
@@ -41,7 +47,8 @@ from aic26_msgs.msg import TrafficLightState
 
 # the shared YOLO backend/helpers live next to this script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from perception_common import YoloNet, to_imgmsg      # noqa: E402
+from perception_common import (SCHEMA_VERSION, YoloNet,
+                               parse_detect_command, to_imgmsg)  # noqa: E402
 
 CLASSES = ['red_off', 'red_on',
            'green_off', 'green_on',
@@ -79,6 +86,10 @@ class TrafficLightDetector(object):
         self.bridge = CvBridge()
         self.debug_warned = False   # log the first debug-image failure only
         self.active = False         # only run while "traffic_light" is asked
+        self.request_id = None
+        self.session = 0
+        self.state_lock = threading.Lock()
+        self.image_lock = threading.Lock()
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
                            nms=self.nms, num_classes=len(CLASSES),
                            log=self._log)
@@ -86,17 +97,34 @@ class TrafficLightDetector(object):
         self.state_pub = rospy.Publisher(
             rospy.get_param('~state_topic', '/perception/traffic_light'),
             TrafficLightState, queue_size=10, latch=True)
+        self.event_pub = rospy.Publisher(
+            rospy.get_param('~event_topic',
+                            '/perception/traffic_light/event'),
+            String, queue_size=10)
         self.image_pub = rospy.Publisher(
             rospy.get_param('~image_topic', '/perception/traffic_light/image'),
             Image, queue_size=1)
+        self.protocol_pub = rospy.Publisher(
+            rospy.get_param(
+                '~protocol_topic', '/perception/traffic_light/protocol'),
+            String, queue_size=1, latch=True)
 
         self.image_topic = rospy.get_param('~image_in', '/camera/image_raw')
         self.image_sub = None
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
+        self.protocol_pub.publish(self._protocol_msg())
+        # A latched message can be missed when a subscriber connects after the
+        # initial publish on some real-car startup schedules. Re-publishing
+        # keeps the protocol handshake deterministic without affecting results.
+        self.protocol_timer = rospy.Timer(
+            rospy.Duration(1.0), self._republish_protocol)
         rospy.loginfo("traffic_light_detector ready (classes: %s)",
                       ','.join(CLASSES))
+
+    def _republish_protocol(self, _event):
+        self.protocol_pub.publish(self._protocol_msg())
 
     @staticmethod
     def _log(level, msg, *args):
@@ -106,6 +134,17 @@ class TrafficLightDetector(object):
         pkg = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(pkg, 'models', 'traffic_int8.onnx')
 
+    def _protocol_msg(self):
+        out = String()
+        out.data = json.dumps({
+            'schema': SCHEMA_VERSION,
+            'target': 'traffic_light',
+            'protocol': 'v2',
+            'request_id': True,
+            'events': True,
+        })
+        return out
+
     def infer(self, frame):
         """Return (class_name, score, box) detections for ``frame``."""
         dets = []
@@ -113,7 +152,6 @@ class TrafficLightDetector(object):
             if 0 <= cls_id < len(CLASSES):
                 dets.append((CLASSES[cls_id], score, box))
         return dets
-
 
     def light_state(self, dets):
         # the state is the color whose lens is detected as "on"
@@ -127,51 +165,100 @@ class TrafficLightDetector(object):
         return 'UNKNOWN'
 
     def on_detect(self, msg):
-        # only the node whose target was requested runs; a request for another
-        # target (or "stop") switches this one off again
-        req = msg.data.strip().lower()
-        if req == 'traffic_light':
-            self.active = True
-            self.last_infer = rospy.Time(0)
+        cmd = parse_detect_command(msg.data)
+        target = cmd.get('target')
+        request_id = cmd.get('request_id')
+        if target == 'traffic_light':
+            with self.state_lock:
+                self.session += 1
+                self.active = True
+                self.request_id = request_id
+                self.last_infer = rospy.Time(0)
+                session = self.session
             self._enable_image()
-            rospy.loginfo("traffic light detection restarted")
-        else:
-            self.active = False
+            rospy.loginfo("traffic light request started (session %d, id %s)",
+                          session, request_id or 'legacy')
+            return
+
+        if target == 'stop':
+            with self.state_lock:
+                current = self.request_id
+                if request_id is not None and request_id != current:
+                    rospy.logwarn("traffic: ignoring stale stop (%s != %s)",
+                                  request_id, current)
+                    return
+                if request_id is None and current is not None:
+                    rospy.logwarn("traffic: ignoring legacy stop while "
+                                  "request %s is active", current)
+                    return
+                self.session += 1
+                self.active = False
+                self.request_id = None
             self._disable_image()
+            return
+
+        # A request for another detector switches this one off.
+        with self.state_lock:
+            if self.active:
+                self.session += 1
+                self.active = False
+                self.request_id = None
+        self._disable_image()
 
     def _enable_image(self):
-        if self.image_sub is None:
-            self.image_sub = rospy.Subscriber(
-                self.image_topic, Image, self.on_image, queue_size=1)
+        with self.image_lock:
+            if self.image_sub is None:
+                self.image_sub = rospy.Subscriber(
+                    self.image_topic, Image, self.on_image, queue_size=1)
 
     def _disable_image(self):
-        if self.image_sub is not None:
-            self.image_sub.unregister()
-            self.image_sub = None
+        with self.image_lock:
+            if self.image_sub is not None:
+                self.image_sub.unregister()
+                self.image_sub = None
 
     def on_image(self, msg):
         # the light state is only inspected while the mission has a
         # traffic_light task at a stop line; between stops nothing is published
-        if not self.active:
-            return
-        if not self.net.ready:
-            return
-        now = rospy.Time.now()
-        if (self.max_rate > 0.0 and
-                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
-            return
-        self.last_infer = now
+        with self.state_lock:
+            if not self.active or not self.net.ready:
+                return
+            now = rospy.Time.now()
+            if (self.max_rate > 0.0 and
+                    (now - self.last_infer).to_sec() <
+                    1.0 / self.max_rate):
+                return
+            self.last_infer = now
+            session = self.session
+            request_id = self.request_id
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)
-        self.publish_state(self.light_state(dets))
+        state = self.light_state(dets)
+
+        with self.state_lock:
+            if (session != self.session or not self.active or
+                    request_id != self.request_id):
+                return
+        self.publish_state(state, session, request_id)
         self.publish_debug(frame, dets)
 
-    def publish_state(self, state):
+    def publish_state(self, state, session=None, request_id=None):
         out = TrafficLightState()
         out.model_name = self.model_name
         out.state = state
         self.state_pub.publish(out)
+
+        event = String()
+        event.data = json.dumps({
+            'schema': SCHEMA_VERSION,
+            'target': 'traffic_light',
+            'model_name': self.model_name,
+            'state': state,
+            'request_id': request_id,
+            'session': session,
+        })
+        self.event_pub.publish(event)
 
     def publish_debug(self, frame, dets):
         for name, score, box in dets:

@@ -3,6 +3,9 @@
 
   <arg name="model_path"
        default="$(find aic26_perception)/models/people_int8.onnx"/>
+  <arg name="observe_time" default="0.8"/>
+  <arg name="min_frames" default="2"/>
+  <arg name="protocol_topic" default="/perception/people/protocol"/>
   <arg name="node_delay" default="0.0"/>
 
   <node name="people_detector" pkg="aic26_perception"
@@ -17,6 +20,9 @@
     <param name="conf"         value="0.5"/>
     <param name="nms"          value="0.45"/>
     <param name="max_rate"     value="5.0"/>
+    <param name="observe_time" value="$(arg observe_time)" type="double"/>
+    <param name="min_frames"   value="$(arg min_frames)" type="int"/>
+    <param name="protocol_topic" value="$(arg protocol_topic)"/>
   </node>
 
 </launch>

@@ -928,15 +928,20 @@ class RobotDriver(object):
     def light_state(self, model):
         return self.lights.get(model, 'UNKNOWN')
 
-    def wait_green(self, model, timeout):
+    def wait_green(self, model, timeout, request_id=None, trigger_start=None):
         """Wait for ``model`` to be GREEN; never block the run for long.
+
+        ``trigger_start`` lets the caller share the trigger time between the
+        detector request and this wait, so the no-data budget is not reset
+        after a fixed trigger delay. The old two-argument calls keep working.
 
         Treats "no data" and a timeout the same way so a missing light does
         not stall a mission that has to keep moving.
         """
         if not HAVE_LIGHT_MSG:
             return True
-        start = rospy.Time.now()
+        start = (trigger_start if trigger_start is not None
+                 else rospy.Time.now())
         deadline = start + rospy.Duration(timeout)
         no_data_break = start + rospy.Duration(
             rospy.get_param('~no_data_wait', 10.0))

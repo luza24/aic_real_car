@@ -39,6 +39,7 @@ import json
 import os
 import sys
 import threading
+import uuid
 
 import numpy as np
 import rospy
@@ -56,6 +57,8 @@ try:
 except ImportError:
     TrafficLightState = None
     HAVE_LIGHT_MSG = False
+
+SCHEMA_VERSION = 2
 
 # Panel sizes in pixels (the same helper as day_night.py in aic26_gazebo)
 GUI_SCALE_ENV = 'AIC26_GUI_SCALE'
@@ -83,11 +86,26 @@ class MissionController(RobotDriver):
     def __init__(self):
         super(MissionController, self).__init__(light_topic=None)
 
-        self.vision_states = {}   # light model -> state from vision
+        self.vision_states = {}   # light model -> legacy latched vision state
         self.truth_states = {}    # light model -> state from sim truth
-        self.results = {}         # detection results, keyed by target
-        self.result_seq = {}      # target -> number of results received
+        self.vision_events = {}   # light model -> v2 vision event payload
+        self.results = {}         # latest result, keyed by target (GUI/diag)
+        self.result_seq = {}      # target -> completed results received
         self.light_fallback = rospy.get_param('~light_fallback', '')
+
+        self.people_detect_timeout = float(
+            rospy.get_param('~people_detect_timeout', 4.0))
+        self.car_detect_timeout = float(
+            rospy.get_param('~car_detect_timeout', 12.0))
+        self.protocol_wait = float(rospy.get_param('~protocol_wait', 10.0))
+
+        self.run_uuid = uuid.uuid4().hex[:8]
+        self.request_seq = 0
+        self.current_request = {}     # target -> request_id
+        self.completed = {}           # (target, request_id) -> complete result
+        self.result_cv = threading.Condition()
+        self.protocols = {}           # target -> schema version
+        self.car_ready = {}           # latest car ocr_ready payload
 
         self.speech_language = rospy.get_param('~speech_language', 'zh')
         self.speech_enabled = bool(rospy.get_param('~speech_enabled', True))
@@ -101,6 +119,26 @@ class MissionController(RobotDriver):
         rospy.Subscriber(
             rospy.get_param('~result_topic', '/perception/result'),
             String, self.on_result)
+
+        protocol_topics = {
+            'people': rospy.get_param(
+                '~people_protocol_topic', '/perception/people/protocol'),
+            'car': rospy.get_param(
+                '~car_protocol_topic', '/perception/car/protocol'),
+            'traffic_light': rospy.get_param(
+                '~traffic_protocol_topic',
+                '/perception/traffic_light/protocol'),
+        }
+        for target, topic in protocol_topics.items():
+            rospy.Subscriber(topic, String, self.on_protocol,
+                             callback_args=target, queue_size=1)
+        rospy.Subscriber(
+            rospy.get_param('~car_ready_topic', '/perception/car/ocr_ready'),
+            String, self.on_car_ready, queue_size=1)
+        rospy.Subscriber(
+            rospy.get_param('~traffic_event_topic',
+                            '/perception/traffic_light/event'),
+            String, self.on_traffic_event, queue_size=10)
 
         if HAVE_LIGHT_MSG:
             rospy.Subscriber(
@@ -121,6 +159,54 @@ class MissionController(RobotDriver):
     def on_truth(self, msg):
         self.truth_states[msg.model_name] = msg.state
 
+    def on_protocol(self, msg, target):
+        try:
+            payload = json.loads(msg.data)
+            if not isinstance(payload, dict):
+                raise ValueError("not an object")
+            schema = int(payload.get('schema', 0))
+        except (TypeError, ValueError):
+            rospy.logwarn("bad %s protocol: %s", target, msg.data)
+            return
+        if schema >= SCHEMA_VERSION:
+            self.protocols[target] = schema
+            rospy.loginfo("%s detector protocol v%d", target, schema)
+        else:
+            rospy.logwarn("%s detector protocol too old: %s", target, msg.data)
+
+    def on_car_ready(self, msg):
+        try:
+            payload = json.loads(msg.data)
+            if not isinstance(payload, dict):
+                raise ValueError("not an object")
+        except (TypeError, ValueError):
+            rospy.logwarn("bad car ready: %s", msg.data)
+            return
+        self.car_ready = payload
+        level = rospy.loginfo if payload.get('ready') else rospy.logwarn
+        level("car OCR ready=%s status=%s reason=%s",
+              payload.get('ready'), payload.get('status'),
+              payload.get('reason', ''))
+
+    def on_traffic_event(self, msg):
+        try:
+            payload = json.loads(msg.data)
+        except (TypeError, ValueError):
+            return
+        if not isinstance(payload, dict):
+            return
+        model = payload.get('model_name')
+        if not model:
+            return
+        current = self.current_request.get('traffic_light')
+        event_id = payload.get('request_id')
+        if current is not None and event_id != current:
+            return
+        if current is None and event_id is not None:
+            # A v2 event without an active request is stale.
+            return
+        self.vision_events[model] = payload
+
     def on_result(self, msg):
         try:
             payload = json.loads(msg.data)
@@ -134,30 +220,55 @@ class MissionController(RobotDriver):
         # /perception/result and both carry a "total" key, so a flat merge
         # would let one overwrite the other
         target = payload.get("target")
-        if target:
+        if not target:
+            return
+        request_id = payload.get('request_id')
+        complete = payload.get('complete')
+        with self.result_cv:
+            # Legacy and incomplete messages are useful for the GUI/diagnosis
+            # but must never satisfy a v2 task request.
             self.results[target] = payload
-            # bump the counter so trigger_detect can tell a fresh result
-            # from the previous stop's cached payload
-            self.result_seq[target] = self.result_seq.get(target, 0) + 1
-        else:
-            self.results.update(payload)
+            if request_id is not None and complete is True:
+                self.completed[(target, str(request_id))] = payload
+                self.result_seq[target] = self.result_seq.get(target, 0) + 1
+                self.result_cv.notify_all()
 
     def result_for(self, target):
         return self.results.get(target, {})
 
     def light_state(self, model):
-        # Vision for the requested light first, then simulation truth, then an
-        # optional generic vision name used on the real robot (no sim truth).
-        state = self.vision_states.get(model)
-        if state in (GREEN, 'RED', 'YELLOW'):
-            return state
+        # Simulation truth is instant and authoritative; vision is only used
+        # when truth is unavailable. A v2 event must belong to the current
+        # traffic request, otherwise a latched state from the previous stop
+        # could be mistaken for this one.
         state = self.truth_states.get(model)
         if state in (GREEN, 'RED', 'YELLOW'):
             return state
-        if self.light_fallback:
-            state = self.vision_states.get(self.light_fallback)
+
+        names = [model]
+        if self.light_fallback and self.light_fallback not in names:
+            names.append(self.light_fallback)
+        current = self.current_request.get('traffic_light')
+        for name in names:
+            event = self.vision_events.get(name)
+            if not event:
+                continue
+            event_id = event.get('request_id')
+            if current is not None and event_id != current:
+                continue
+            state = event.get('state')
             if state in (GREEN, 'RED', 'YELLOW'):
                 return state
+
+        # Legacy vision state is only meaningful without an active v2 request.
+        if current is None:
+            state = self.vision_states.get(model)
+            if state in (GREEN, 'RED', 'YELLOW'):
+                return state
+            if self.light_fallback:
+                state = self.vision_states.get(self.light_fallback)
+                if state in (GREEN, 'RED', 'YELLOW'):
+                    return state
         return 'UNKNOWN'
 
     # ---------------------------------------------------------------- output
@@ -174,31 +285,84 @@ class MissionController(RobotDriver):
                 target, result, self.speech_language)
         return task.get("message", "inspection finished")
 
-    def trigger_detect(self, target):
-        """Ask the perception nodes for ``target`` and let them settle.
-
-        Publishing the target also switches the other detector nodes off, so
-        only the requested one runs while this stop is being inspected.
-
-        Returns the result received after this call, or None when no fresh
-        result arrived within ``~detect_wait``.  Callers use this to tell a
-        real zero-person detection from a missing result.
-        """
-        self.results.pop(target, None)
-        start_seq = self.result_seq.get(target, 0)
+    def _publish_detect(self, target, request_id=None):
         req = String()
-        req.data = target
+        req.data = json.dumps({
+            'schema': SCHEMA_VERSION,
+            'target': target,
+            'request_id': request_id,
+        })
         self.detect_pub.publish(req)
-        rospy.sleep(rospy.get_param('~detect_wait', 1.0))
-        if self.result_seq.get(target, 0) == start_seq:
-            return None
-        return self.results.get(target)
 
-    def stop_detect(self):
-        """Tell the detectors to stop; none of them runs between stops."""
-        req = String()
-        req.data = "stop"
-        self.detect_pub.publish(req)
+    def start_detect(self, target):
+        """Start a v2 request and return its request id."""
+        self.request_seq += 1
+        request_id = '%s:%d' % (self.run_uuid, self.request_seq)
+        self.current_request[target] = request_id
+        self._publish_detect(target, request_id)
+        rospy.loginfo("detect start: %s (%s)", target, request_id)
+        return request_id
+
+    def wait_result(self, target, request_id, timeout):
+        """Wait for the matching complete result, or return None."""
+        deadline = rospy.Time.now() + rospy.Duration(float(timeout))
+        with self.result_cv:
+            while not rospy.is_shutdown():
+                payload = self.completed.get((target, request_id))
+                if payload is not None:
+                    return payload
+                remaining = (deadline - rospy.Time.now()).to_sec()
+                if remaining <= 0.0:
+                    rospy.logwarn("no complete %s result for %s within %.1fs",
+                                  target, request_id, timeout)
+                    return None
+                self.result_cv.wait(min(0.1, remaining))
+        return None
+
+    def stop_detect(self, target, request_id=None):
+        """Tell one detector to stop; a v2 stop only matches its request."""
+        if request_id is None:
+            request_id = self.current_request.get(target)
+        self._publish_detect('stop', request_id)
+        self.current_request.pop(target, None)
+
+    def stop_all_detects(self):
+        for target in list(self.current_request):
+            self.stop_detect(target)
+
+    def wait_until(self, deadline):
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            remaining = (deadline - rospy.Time.now()).to_sec()
+            if remaining <= 0.0:
+                break
+            rospy.sleep(min(0.1, remaining))
+
+    def wait_protocols(self, required):
+        """Refuse to start a task loop against old detector code."""
+        if not required:
+            return True
+        deadline = rospy.Time.now() + rospy.Duration(self.protocol_wait)
+        while not rospy.is_shutdown() and rospy.Time.now() < deadline:
+            missing = [t for t in required
+                       if self.protocols.get(t, 0) < SCHEMA_VERSION]
+            if not missing:
+                return True
+            rospy.sleep(0.1)
+        missing = [t for t in required
+                   if self.protocols.get(t, 0) < SCHEMA_VERSION]
+        rospy.logerr("detector protocol v%d missing for: %s",
+                     SCHEMA_VERSION, ', '.join(sorted(missing)))
+        return False
+
+    def report_car_ready(self):
+        """Log the preload state but never let it block the route."""
+        status = self.car_ready.get('status', 'unknown')
+        if self.car_ready.get('ready'):
+            rospy.loginfo("car OCR preload ready (status=%s)", status)
+        else:
+            rospy.logwarn("car OCR preload not ready (status=%s, reason=%s); "
+                          "patrol continues and car stops may retry OCR",
+                          status, self.car_ready.get('reason', ''))
 
     # ---------------------------------------------------------------- tasks
     def run_task(self, task, waypoints):
@@ -224,30 +388,52 @@ class MissionController(RobotDriver):
             # light / people before we start waiting or detecting
             turned = self.turn_in_place(wp, turn)
 
+        turn_failed = turn in ("left", "right") and not turned
+
         if ttype == "traffic_light":
-            # trigger the vision detector at the stop line (same as the inspect
-            # tasks) so the light is only inspected here, not between stops
+            # Share one trigger time between the detector request and the
+            # green wait; simulation truth can satisfy it immediately.
             self.vision_states.pop(task["light"], None)
+            self.vision_events.pop(task["light"], None)
             if self.light_fallback:
                 self.vision_states.pop(self.light_fallback, None)
-            self.trigger_detect("traffic_light")
-            self.wait_green(task["light"], task.get("wait", 30.0))
-            # stop the detector again so it does not run between stops
-            self.stop_detect()
+                self.vision_events.pop(self.light_fallback, None)
+            trigger_start = rospy.Time.now()
+            request_id = self.start_detect("traffic_light")
+            self.wait_green(task["light"], task.get("wait", 30.0),
+                            request_id=request_id,
+                            trigger_start=trigger_start)
+            self.stop_detect("traffic_light", request_id)
 
         if ttype == "inspect":
-            rospy.sleep(task.get("dwell", 0.0))
             target = task.get("target")
-            result = None
-            if target:
-                result = self.trigger_detect(target)
-            if task.get("announce", True):
-                self.speak(self.build_message(task, result))
-            self.stop_detect()
+            if turn_failed:
+                rospy.logwarn("turn failed at %s, skipping %s detection",
+                              name, target or "inspection")
+            else:
+                # Trigger at the beginning of the dwell: camera start-up,
+                # inference and OCR overlap with the stop time.
+                dwell_deadline = (rospy.Time.now() +
+                                  rospy.Duration(float(
+                                      task.get("dwell", 0.0))))
+                result = None
+                request_id = None
+                if target:
+                    timeout = (self.people_detect_timeout
+                               if target == "people"
+                               else self.car_detect_timeout)
+                    request_id = self.start_detect(target)
+                    result = self.wait_result(target, request_id, timeout)
+                    self.wait_until(dwell_deadline)
+                    if task.get("announce", True):
+                        self.speak(self.build_message(task, result))
+                    self.stop_detect(target, request_id)
+                else:
+                    self.wait_until(dwell_deadline)
 
         # face the waypoint heading again so the next go_to starts from the
         # planned orientation instead of the inspection heading
-        if turned and not self.turn_back(wp):
+        if turn in ("left", "right") and not self.turn_back(wp):
             self.stop_motion()
             rospy.logwarn("could not restore heading at %s, holding", name)
 
@@ -257,8 +443,24 @@ class MissionController(RobotDriver):
         waypoints = {w["name"]: w for w in load_waypoints(
             rospy.get_param("~waypoints_file"))}
 
+        required = set()
+        for task in tasks:
+            ttype = task.get("type", "goto")
+            target = task.get("target")
+            if ttype == "traffic_light":
+                required.add("traffic_light")
+            elif ttype == "inspect" and target in ("people", "car"):
+                required.add(target)
+
         self.wait_ready()
-        rospy.loginfo("mission started, %d tasks", len(tasks))
+        if not self.wait_protocols(required):
+            rospy.logerr("mission not started: detector protocol mismatch")
+            return
+        if "car" in required:
+            # Preloading is an optimisation. It must never hold up the route.
+            self.report_car_ready()
+        rospy.loginfo("mission started, %d tasks (run %s)",
+                      len(tasks), self.run_uuid)
 
         try:
             for task in tasks:
@@ -272,6 +474,8 @@ class MissionController(RobotDriver):
         except KeyboardInterrupt:
             self.stop_motion()
             rospy.loginfo("mission interrupted by KeyboardInterrupt")
+        finally:
+            self.stop_all_detects()
         rospy.loginfo("mission finished")
 
 
@@ -328,14 +532,20 @@ class ResultViewer(object):
     def on_result(self, msg):
         try:
             payload = json.loads(msg.data)
+            if not isinstance(payload, dict):
+                raise ValueError("not an object")
         except ValueError:
             rospy.logwarn("result viewer: bad json: %s", msg.data)
             return
         target = payload.get('target', 'traffic_light')
+        complete = payload.get('complete', True)
         with self.lock:
             self.result[target] = payload
-        self.write_json(target, payload)
-        self.write_summary()
+        # Progress updates are useful on screen but must not overwrite the
+        # final JSON that the next run / reviewer reads.
+        if complete:
+            self.write_json(target, payload)
+            self.write_summary()
 
     def on_image(self, msg, target):
         if self.bridge is None:

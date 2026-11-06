@@ -1,8 +1,21 @@
 {
+  "schema": 2,
   "target": "people",
+  "request_id": "fda73dec:8",
+  "session": 11,
+  "complete": true,
   "total": 0,
   "community": 0,
   "intruder": 0,
   "intruders": [],
-  "boxes": {}
+  "boxes": {},
+  "frames": 4,
+  "observe_s": 0.836,
+  "frame_counts": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "selected_frame": 4
 }

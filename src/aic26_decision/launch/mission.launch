@@ -15,6 +15,10 @@
   <arg name="light_fallback" default=""/>
   <arg name="speech_language" default="zh"/>
   <arg name="speech_enabled"  default="true"/>
+  <arg name="people_detect_timeout"
+       default="$(eval '10.0' if arg('backend') == 'sim' else '4.0')"/>
+  <arg name="car_detect_timeout" default="12.0"/>
+  <arg name="protocol_wait" default="10.0"/>
   <arg name="node_delay"     default="0.0"/>
 
   <node name="mission_controller" pkg="aic26_decision"
@@ -33,7 +37,9 @@
     <param name="speech_enabled"  value="$(arg speech_enabled)" type="bool"/>
     <param name="gui"           value="$(arg gui)"/>
     <param name="results_dir"   value="$(arg results_dir)"/>
-    <param name="detect_wait"   value="1.0"/>
+    <param name="people_detect_timeout" value="$(arg people_detect_timeout)" type="double"/>
+    <param name="car_detect_timeout" value="$(arg car_detect_timeout)" type="double"/>
+    <param name="protocol_wait" value="$(arg protocol_wait)" type="double"/>
     <param name="no_data_wait"  value="10.0"/>
     <param name="nav_timeout"   value="120.0"/>
 

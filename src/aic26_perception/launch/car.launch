@@ -8,7 +8,12 @@
   <arg name="ocr_binary" default="false"/>
   <arg name="ocr_gpu" default="false"/>
   <arg name="ocr_min_chars" default="4"/>
-  <arg name="ocr_wait" default="8.0"/>
+  <arg name="ocr_preload" default="true"/>
+  <arg name="ocr_num_threads" default="2"/>
+  <arg name="request_timeout" default="10.0"/>
+  <arg name="empty_observe_time" default="1.0"/>
+  <arg name="ocr_ready_topic" default="/perception/car/ocr_ready"/>
+  <arg name="protocol_topic" default="/perception/car/protocol"/>
   <arg name="node_delay" default="0.0"/>
 
   <node name="car_detector" pkg="aic26_perception"
@@ -25,10 +30,15 @@
     <param name="max_rate"     value="5.0"/>
     <rosparam param="plate_roi" subst_value="true">$(arg plate_roi)</rosparam>
     <param name="ocr_scale"    value="$(arg ocr_scale)"/>
-    <param name="ocr_binary"   value="$(arg ocr_binary)"/>
-    <param name="ocr_gpu"      value="$(arg ocr_gpu)"/>
-    <param name="ocr_min_chars" value="$(arg ocr_min_chars)"/>
-    <param name="ocr_wait"     value="$(arg ocr_wait)"/>
+    <param name="ocr_binary"   value="$(arg ocr_binary)" type="bool"/>
+    <param name="ocr_gpu"      value="$(arg ocr_gpu)" type="bool"/>
+    <param name="ocr_min_chars" value="$(arg ocr_min_chars)" type="int"/>
+    <param name="ocr_preload"  value="$(arg ocr_preload)" type="bool"/>
+    <param name="ocr_num_threads" value="$(arg ocr_num_threads)" type="int"/>
+    <param name="request_timeout" value="$(arg request_timeout)" type="double"/>
+    <param name="empty_observe_time" value="$(arg empty_observe_time)" type="double"/>
+    <param name="ocr_ready_topic" value="$(arg ocr_ready_topic)"/>
+    <param name="protocol_topic" value="$(arg protocol_topic)"/>
   </node>
 
 </launch>

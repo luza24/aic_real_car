@@ -6,10 +6,17 @@ the current view. Every person model has its own class, so each class is
 counted at most once (no double counting within one detection).
 
     sub : /camera/image_raw              (sensor_msgs/Image)
-    sub : /perception/detect             (std_msgs/String, "people" starts a
-                                          count, anything else stops it)
+    sub : /perception/detect             (std_msgs/String, JSON or legacy text)
     pub : /perception/result             (std_msgs/String, json)
     pub : /perception/people/image       (sensor_msgs/Image, debug)
+    pub : /perception/people/protocol    (std_msgs/String, latched, json)
+
+A request is observed over a short window that starts with the first
+decoded camera frame. Each frame is counted on its own (the same class is
+counted once per frame); classes from different frames are never added
+together. The final result (``complete=true``) is published exactly once at
+the end of the window and uses the mode of the per-frame counts. Intermediate
+frames are published as ``complete=false`` for the GUI.
 
 The int8 ONNX model is included in the package. To train a replacement, use
 the classes below, export it to int8 ONNX and place it at:
@@ -26,6 +33,7 @@ community.
 import json
 import os
 import sys
+import threading
 
 import cv2
 import rospy
@@ -35,7 +43,8 @@ from std_msgs.msg import String
 
 # the shared YOLO backend/helpers live next to this script
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from perception_common import YoloNet, to_imgmsg      # noqa: E402
+from perception_common import (SCHEMA_VERSION, YoloNet,
+                               parse_detect_command, to_imgmsg)  # noqa: E402
 
 CLASSES = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9',
            'p10', 'p11', 'p12', 'p13', 'p14', 'p15', 'p16', 'pF1', 'pF2']
@@ -58,15 +67,30 @@ class PeopleDetector(object):
         # dwell and leaves CPU for navigation and the other nodes.
         self.max_rate = float(rospy.get_param('~max_rate', 5.0))
         self.last_infer = rospy.Time(0)
+        # The window starts with the first frame, not with the request, so a
+        # cold camera does not consume the observation budget.
+        self.observe_time = float(rospy.get_param('~observe_time', 0.8))
+        self.min_frames = max(1, int(rospy.get_param('~min_frames', 2)))
 
         self.bridge = CvBridge()
         self.net = YoloNet(self.model_path, size=self.size, conf=self.conf,
                            nms=self.nms, num_classes=len(CLASSES),
                            log=self._log)
 
-        self.seen = set()     # classes already counted in this detection
-        self.active = False   # only detect while "people" is requested
-        self.debug_warned = False   # log the first debug-image failure only
+        self.active = False       # only detect while "people" is requested
+        self.request_id = None    # v2 request id, None for legacy commands
+        self.session = 0          # invalidates callbacks from older requests
+        self.finalized = False    # the one complete result already went out
+        # Per-frame snapshots.  The final count is the mode of these counts;
+        # classes from different frames are never added together.
+        self.frame_counts = []
+        self.frame_snapshots = []
+        self.frames = 0           # frames processed in this request
+        self.first_frame_time = None
+        self.window_end = None
+        self.state_lock = threading.Lock()
+        self.image_lock = threading.Lock()
+        self.debug_warned = False  # log the first debug-image failure only
 
         self.result_pub = rospy.Publisher(
             rospy.get_param('~result_topic', '/perception/result'),
@@ -74,13 +98,22 @@ class PeopleDetector(object):
         self.image_pub = rospy.Publisher(
             rospy.get_param('~image_topic', '/perception/people/image'),
             Image, queue_size=1)
+        self.protocol_pub = rospy.Publisher(
+            rospy.get_param('~protocol_topic', '/perception/people/protocol'),
+            String, queue_size=1, latch=True)
 
         self.image_topic = rospy.get_param('~image_in', '/camera/image_raw')
         self.image_sub = None
         rospy.Subscriber(
             rospy.get_param('~detect_topic', '/perception/detect'),
             String, self.on_detect)
-        rospy.loginfo("people_detector ready (%d classes)", len(CLASSES))
+        self.protocol_pub.publish(self._protocol_msg())
+        # Also finalise on a timer: the window may end between two camera
+        # frames, and waiting for the next frame would add latency.
+        self.finish_timer = rospy.Timer(
+            rospy.Duration(0.1), self._on_finish_timer)
+        rospy.loginfo("people_detector ready (%d classes, observe %.1fs/%d)",
+                      len(CLASSES), self.observe_time, self.min_frames)
 
     @staticmethod
     def _log(level, msg, *args):
@@ -89,6 +122,18 @@ class PeopleDetector(object):
     def default_model_path(self):
         pkg = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         return os.path.join(pkg, 'models', 'people_int8.onnx')
+
+    def _protocol_msg(self):
+        out = String()
+        out.data = json.dumps({
+            'schema': SCHEMA_VERSION,
+            'target': 'people',
+            'protocol': 'v2',
+            'request_id': True,
+            'complete': True,
+            'observation': True,
+        })
+        return out
 
     def infer(self, frame):
         """Return (class_name, score, box) detections for ``frame``."""
@@ -99,68 +144,191 @@ class PeopleDetector(object):
         return dets
 
     def on_detect(self, msg):
-        # only the node whose target was requested runs; a request for another
-        # target (or "stop") switches this one off again
-        req = msg.data.strip().lower()
-        if req == 'people':
-            self.active = True
-            self.seen = set()
-            self.last_infer = rospy.Time(0)
+        cmd = parse_detect_command(msg.data)
+        target = cmd.get('target')
+        request_id = cmd.get('request_id')
+        if target == 'people':
+            with self.state_lock:
+                self.session += 1
+                self.active = True
+                self.request_id = request_id
+                self.finalized = False
+                self.frame_counts = []
+                self.frame_snapshots = []
+                self.frames = 0
+                self.first_frame_time = None
+                self.window_end = None
+                self.last_infer = rospy.Time(0)
+                session = self.session
             self._enable_image()
-            rospy.loginfo("people count restarted")
-        else:
-            self.active = False
+            rospy.loginfo("people request started (session %d, id %s)",
+                          session, request_id or 'legacy')
+            return
+
+        if target == 'stop':
+            with self.state_lock:
+                current = self.request_id
+                if request_id is not None and request_id != current:
+                    rospy.logwarn("people: ignoring stale stop (%s != %s)",
+                                  request_id, current)
+                    return
+                if request_id is None and current is not None:
+                    rospy.logwarn("people: ignoring legacy stop while "
+                                  "request %s is active", current)
+                    return
+                self.session += 1
+                self.active = False
+                self.request_id = None
+                self.finalized = False
             self._disable_image()
+            return
+
+        # A request for another detector switches this one off.
+        with self.state_lock:
+            if self.active:
+                self.session += 1
+                self.active = False
+                self.request_id = None
+                self.finalized = False
+        self._disable_image()
 
     def _enable_image(self):
-        if self.image_sub is None:
-            self.image_sub = rospy.Subscriber(
-                self.image_topic, Image, self.on_image, queue_size=1)
+        with self.image_lock:
+            if self.image_sub is None:
+                self.image_sub = rospy.Subscriber(
+                    self.image_topic, Image, self.on_image, queue_size=1)
 
     def _disable_image(self):
-        if self.image_sub is not None:
-            self.image_sub.unregister()
-            self.image_sub = None
+        with self.image_lock:
+            if self.image_sub is not None:
+                self.image_sub.unregister()
+                self.image_sub = None
 
     def on_image(self, msg):
-        if not self.active:
-            return
-        if not self.net.ready:
-            return
-        now = rospy.Time.now()
-        if (self.max_rate > 0.0 and
-                (now - self.last_infer).to_sec() < 1.0 / self.max_rate):
-            return
-        self.last_infer = now
+        with self.state_lock:
+            if not self.active or self.finalized or not self.net.ready:
+                return
+            now = rospy.Time.now()
+            if (self.max_rate > 0.0 and
+                    (now - self.last_infer).to_sec() <
+                    1.0 / self.max_rate):
+                return
+            self.last_infer = now
+            session = self.session
+            request_id = self.request_id
 
         frame = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
         dets = self.infer(frame)
-        self.update_seen(dets)
-        self.publish_result(dets)
+
+        with self.state_lock:
+            if (session != self.session or not self.active or
+                    self.finalized or request_id != self.request_id):
+                return
+            if self.first_frame_time is None:
+                self.first_frame_time = now
+                self.window_end = now + rospy.Duration(self.observe_time)
+            self.frames += 1
+            frame_seen = sorted({name for name, _, _ in dets})
+            frame_boxes = {}
+            for name, _, box in dets:
+                frame_boxes.setdefault(name, []).append(
+                    [round(float(v), 1) for v in box])
+            self.frame_counts.append(len(frame_seen))
+            self.frame_snapshots.append({
+                'seen': frame_seen,
+                'boxes': frame_boxes,
+            })
+            frame_counts = list(self.frame_counts)
+            frames = self.frames
+            observe_s = (now - self.first_frame_time).to_sec()
+
+        self.publish_result(frame_seen, frame_boxes, frame_counts, frames,
+                            observe_s, complete=False, session=session,
+                            request_id=request_id)
         self.publish_debug(frame, dets)
+        self._maybe_finalize()
 
-    def update_seen(self, dets):
-        for name, _, _ in dets:
-            self.seen.add(name)
+    def _on_finish_timer(self, _event):
+        try:
+            self._maybe_finalize()
+        except Exception as err:                       # noqa: BLE001
+            rospy.logwarn("people_detector: finalise failed: %s", err)
 
-    def publish_result(self, dets):
-        intruders = sorted(c for c in self.seen if c in INTRUDERS)
-        community = len(self.seen) - len(intruders)
-        # one entry per detection, keyed by class name (a class may be seen
-        # several times in one frame, so the value is a list of boxes)
-        boxes = {}
-        for name, _, box in dets:
-            boxes.setdefault(name, []).append(
-                [round(float(v), 1) for v in box])
+    def _maybe_finalize(self):
+        with self.state_lock:
+            if (not self.active or self.finalized or
+                    self.first_frame_time is None):
+                return
+            if self.frames < self.min_frames:
+                return
+            if rospy.Time.now() < self.window_end:
+                return
+            counts = list(self.frame_counts)
+            frequency = {}
+            for count in counts:
+                frequency[count] = frequency.get(count, 0) + 1
+            best_frequency = max(frequency.values())
+            mode_count = max(count for count, number in frequency.items()
+                             if number == best_frequency)
+            matching = [i for i, count in enumerate(counts)
+                        if count == mode_count]
+            selected_index = matching[-1]
+            snapshot = self.frame_snapshots[selected_index]
+            seen = list(snapshot['seen'])
+            boxes = {name: [list(box) for box in class_boxes]
+                     for name, class_boxes in snapshot['boxes'].items()}
+            self.finalized = True
+            session = self.session
+            request_id = self.request_id
+            frames = self.frames
+            selected_frame = selected_index + 1
+            observe_s = (rospy.Time.now() -
+                         self.first_frame_time).to_sec()
 
+        self._publish_payload(seen, boxes, frames, observe_s,
+                              complete=True, session=session,
+                              request_id=request_id,
+                              frame_counts=counts,
+                              selected_frame=selected_frame)
+        self._disable_image()
+        rospy.loginfo("people request finished (session %d, id %s, "
+                      "%d frames, counts=%s, mode=%d, selected=%d)",
+                      session, request_id or 'legacy', frames, counts,
+                      mode_count, selected_frame)
+
+    def publish_result(self, seen, boxes, frame_counts, frames, observe_s,
+                       complete, session, request_id):
+        with self.state_lock:
+            if (session != self.session or request_id != self.request_id or
+                    not self.active):
+                return
+        self._publish_payload(seen, boxes, frames, observe_s,
+                              complete=complete, session=session,
+                              request_id=request_id,
+                              frame_counts=frame_counts,
+                              selected_frame=None)
+
+    def _publish_payload(self, seen, boxes, frames, observe_s,
+                         complete, session, request_id,
+                         frame_counts=None, selected_frame=None):
+        intruders = sorted(c for c in seen if c in INTRUDERS)
+        community = len(seen) - len(intruders)
         out = String()
         out.data = json.dumps({
+            'schema': SCHEMA_VERSION,
             'target': 'people',
-            'total': len(self.seen),
+            'request_id': request_id,
+            'session': session,
+            'complete': bool(complete),
+            'total': len(seen),
             'community': community,
             'intruder': len(intruders),
             'intruders': intruders,
             'boxes': boxes,
+            'frames': frames,
+            'observe_s': round(float(observe_s), 3),
+            'frame_counts': list(frame_counts or []),
+            'selected_frame': selected_frame,
         })
         self.result_pub.publish(out)
 
@@ -194,4 +362,3 @@ if __name__ == '__main__':
         main()
     except rospy.ROSInterruptException:
         pass
-

@@ -1,9 +1,42 @@
 """Shared helpers for the aic26_perception detectors."""
 
+import json
 import os
 
 import cv2
 import numpy as np
+
+SCHEMA_VERSION = 2
+
+
+def parse_detect_command(data):
+    """Parse a detection command, accepting both v2 JSON and legacy text.
+
+    v2 commands carry a request id so a detector can reject a late stop or a
+    result from an older request:
+
+        {"schema": 2, "target": "car", "request_id": "abc:3"}
+
+    ``rostopic pub`` users can still send the old plain strings ("car",
+    "people", "traffic_light", "stop"); those have ``request_id=None`` and
+    only produce legacy results for diagnostics.
+    """
+    raw = str(data or '').strip()
+    try:
+        payload = json.loads(raw)
+    except (TypeError, ValueError):
+        payload = None
+    if isinstance(payload, dict):
+        try:
+            schema = int(payload.get('schema', 0))
+        except (TypeError, ValueError):
+            schema = 0
+        target = str(payload.get('target', '')).strip().lower()
+        request_id = payload.get('request_id')
+        if schema >= SCHEMA_VERSION and target:
+            return {'schema': SCHEMA_VERSION, 'target': target,
+                    'request_id': str(request_id) if request_id else None}
+    return {'schema': 1, 'target': raw.lower(), 'request_id': None}
 
 try:
     import openvino as ov
